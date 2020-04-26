@@ -14,6 +14,7 @@ import math
 from Bio.Phylo import BaseTree
 from Bio.Align import MultipleSeqAlignment
 from Bio.SubsMat import MatrixInfo
+from Bio.Phylo.EvolutionModel import EvolutionModel
 
 
 class _Matrix:
@@ -1207,19 +1208,29 @@ class ParsimonyTreeConstructor(TreeConstructor):
 
 
 class LikelihoodScorer(Scorer):
+    """Likelihood scorer.
+
+    This is a Felsenstein's pruning algorithm.
+
+    :Parameters:
+        evolution_model: EvolutionModel
+    """
 
     def __init__(self, evolution_model):
-        self.evolution_model = evolution_model
+        """Initialize the class."""
+        if isinstance(evolution_model, EvolutionModel):
+            self.evolution_model = evolution_model
+        else:
+            raise TypeError("Must provide an EvolutionModel object.")
 
     def get_score(self, tree, alignment):
         """Calculate likelihood score using Felsenstein's pruning algorithm.
 
-        Some code taken from ParsimonyScorer's get_score method
+        Some code taken from ParsimonyScorer's get_score method.
 
         :Parameters:
             tree: Tree
             alignment: MultipleSequenceAlignment
-            evolution_model: EvolutionModel
         """
         _tree = copy.deepcopy(tree)
         if not _tree.is_bifurcating():
@@ -1244,24 +1255,36 @@ class LikelihoodScorer(Scorer):
             dp_dict = {}
             column_i = alignment[:, i]
             clade_states = dict(zip(terms, column_i))
-            likelihood += math.log(sum(self.pos_likelihood(clade=root_clade,
-                                                           root_nuc=nuc,
-                                                           clade_states=clade_states,
-                                                           dp_dict=dp_dict,
+            likelihood += math.log(
+                sum(
+                    self._pos_likelihood(
+                        clade=root_clade,
+                        root_nuc=nuc,
+                        clade_states=clade_states,
+                        dp_dict=dp_dict,
+                    )
+                    for nuc in "ACGT"
+                )
+            )
+        return likelihood
 
-                                                           ) for nuc in "ACGT"))
-
-    def pos_likelihood(self, clade, root_nuc, clade_states, dp_dict):
+    def _pos_likelihood(self, clade, root_nuc, clade_states, dp_dict):
         if (clade, root_nuc) not in dp_dict:
             if clade.is_terminal():
-                dp_dict[(clade.name, root_nuc)] = 1 if clade_states[clade.name] == root_nuc else 0
+                dp_dict[(clade.name, root_nuc)] = (
+                    1 if clade_states[clade.name] == root_nuc else 0
+                )
             else:
                 left, right = clade.clades
                 dp_dict[(clade.name, root_nuc)] = sum(
-                    self.evolution_model.get_probability(root_nuc, b, left.branch_length)
-                    * self.pos_likelihood(left, b, clade_states, dp_dict)
-                    * self.evolution_model.get_probability(root_nuc, c, right.branch_length)
-                    * self.pos_likelihood(right, c, clade_states, dp_dict)
+                    self.evolution_model.get_probability(
+                        root_nuc, b, left.branch_length
+                    )
+                    * self._pos_likelihood(left, b, clade_states, dp_dict)
+                    * self.evolution_model.get_probability(
+                        root_nuc, c, right.branch_length
+                    )
+                    * self._pos_likelihood(right, c, clade_states, dp_dict)
                     for b, c in itertools.product("ACGT", repeat=2)
                 )
         return dp_dict[(clade.name, root_nuc)]
