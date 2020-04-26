@@ -248,6 +248,7 @@ please open an issue on GitHub or mention it on the mailing list.
 - Sjoerd de Vries <sjoerd at domain nmr.chem.uu.nl>
 - Sourav Singh <https://github.com/souravsingh>
 - Spencer Bliven <https://github.com/sbliven>
+- Stanislaw Antonowicz <https://github.com/santonow>
 - Stefans Mezulis <https://github.com/StefansM>
 - Steve Bond <https://github.com/biologyguy>
 - Steve Marshall <https://github.com/hungryhoser>
