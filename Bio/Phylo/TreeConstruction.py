@@ -1230,7 +1230,7 @@ class LikelihoodScorer(Scorer):
 
         :Parameters:
             tree: Tree
-            alignment: MultipleSequenceAlignment
+            alignment: MultipleSeqAlignment
         """
         _tree = copy.deepcopy(tree)
         if not _tree.is_bifurcating():
@@ -1249,12 +1249,12 @@ class LikelihoodScorer(Scorer):
         root_clade = tree.root
         for i, clade in enumerate(_tree.get_nonterminals()):
             if not clade.name:
+                # to differentiate between nonterminals in DP dictionary
                 clade.name = "Nonterminal{}".format(i)
         for i in range(len(alignment[0])):
             # dynamic programming dictionary
             dp_dict = {}
-            column_i = alignment[:, i]
-            clade_states = dict(zip(terms, column_i))
+            clade_states = dict(zip((t.name for t in terms), alignment[:, i]))
             likelihood += math.log(
                 sum(
                     self._pos_likelihood(
@@ -1262,7 +1262,7 @@ class LikelihoodScorer(Scorer):
                         root_nuc=nuc,
                         clade_states=clade_states,
                         dp_dict=dp_dict,
-                    )
+                    ) * self.evolution_model.stat_params[nuc]
                     for nuc in "ACGT"
                 )
             )
