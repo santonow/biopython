@@ -10,6 +10,7 @@
 import itertools
 import copy
 import numbers
+import math
 from Bio.Phylo import BaseTree
 from Bio.Align import MultipleSeqAlignment
 from Bio.SubsMat import MatrixInfo
@@ -1200,3 +1201,67 @@ class ParsimonyTreeConstructor(TreeConstructor):
             dtc = DistanceTreeConstructor(DistanceCalculator("identity"), "upgma")
             self.starting_tree = dtc.build_tree(alignment)
         return self.searcher.search(self.starting_tree, alignment)
+
+
+# ######################## Likelihood Methods ##########################
+
+
+class LikelihoodScorer(Scorer):
+
+    def __init__(self, evolution_model):
+        self.evolution_model = evolution_model
+
+    def get_score(self, tree, alignment):
+        """Calculate likelihood score using Felsenstein's pruning algorithm.
+
+        Some code taken from ParsimonyScorer's get_score method
+
+        :Parameters:
+            tree: Tree
+            alignment: MultipleSequenceAlignment
+            evolution_model: EvolutionModel
+        """
+        _tree = copy.deepcopy(tree)
+        if not _tree.is_bifurcating():
+            raise ValueError("The tree provided should be bifurcating.")
+        if not _tree.rooted:
+            _tree.root_at_midpoint()
+        # sort tree terminals and alignment
+        terms = _tree.get_terminals()
+        terms.sort(key=lambda term: term.name)
+        alignment.sort()
+        if not all(t.name == a.id for t, a in zip(terms, alignment)):
+            raise ValueError(
+                "Taxon names of the input tree should be the same with the alignment."
+            )
+        likelihood = 0
+        root_clade = tree.root
+        for i, clade in enumerate(_tree.get_nonterminals()):
+            if not clade.name:
+                clade.name = "Nonterminal{}".format(i)
+        for i in range(len(alignment[0])):
+            # dynamic programming dictionary
+            dp_dict = {}
+            column_i = alignment[:, i]
+            clade_states = dict(zip(terms, column_i))
+            likelihood += math.log(sum(self.pos_likelihood(clade=root_clade,
+                                                           root_nuc=nuc,
+                                                           clade_states=clade_states,
+                                                           dp_dict=dp_dict,
+
+                                                           ) for nuc in "ACGT"))
+
+    def pos_likelihood(self, clade, root_nuc, clade_states, dp_dict):
+        if (clade, root_nuc) not in dp_dict:
+            if clade.is_terminal():
+                dp_dict[(clade.name, root_nuc)] = 1 if clade_states[clade.name] == root_nuc else 0
+            else:
+                left, right = clade.clades
+                dp_dict[(clade.name, root_nuc)] = sum(
+                    self.evolution_model.get_probability(root_nuc, b, left.branch_length)
+                    * self.pos_likelihood(left, b, clade_states, dp_dict)
+                    * self.evolution_model.get_probability(root_nuc, c, right.branch_length)
+                    * self.pos_likelihood(right, c, clade_states, dp_dict)
+                    for b, c in itertools.product("ACGT", repeat=2)
+                )
+        return dp_dict[(clade.name, root_nuc)]
