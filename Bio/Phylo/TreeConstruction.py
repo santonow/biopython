@@ -1214,6 +1214,34 @@ class LikelihoodScorer(Scorer):
 
     :Parameters:
         evolution_model: EvolutionModel
+
+    Examples
+    --------
+    >>> from Bio import AlignIO, Phylo
+    >>> aln = AlignIO.read(open('TreeConstruction/lk_msa.phy'), 'phylip')
+    >>> aln
+    SingleLetterAlphabet() alignment with 4 rows and 6 columns
+    AACACA Alpha
+    AACGCA Beta
+    AACGTG Delta
+    ATTACA Gamma
+    >>> tree = Phylo.read(open('TreeConstruction/lk.tre'), "newick")
+    >>> print(tree)
+    Tree(rooted=False, weight=1.0)
+        Clade(branch_length=0.0)
+            Clade(branch_length=3.0)
+                Clade(branch_length=1.0, name='Alpha')
+                Clade(branch_length=2.5, name='Beta')
+            Clade(branch_length=4.5)
+                Clade(branch_length=1.0, name='Gamma')
+                Clade(branch_length=1.0, name='Delta')
+    >>> from Bio.Phylo.EvolutionModel import F81Model
+    >>> evolution_model = F81Model()
+    >>> from Bio.Phylo.TreeConstruction import LikelihoodScorer
+    >>> scorer = LikelihoodScorer(evolution_model=evolution_model)
+    >>> scorer.get_score(tree, aln)
+    -33.31209847109528
+
     """
 
     def __init__(self, evolution_model):
@@ -1246,7 +1274,7 @@ class LikelihoodScorer(Scorer):
                 "Taxon names of the input tree should be the same with the alignment."
             )
         likelihood = 0
-        root_clade = tree.root
+        root_clade = _tree.root
         for i, clade in enumerate(_tree.get_nonterminals()):
             if not clade.name:
                 # to differentiate between nonterminals in DP dictionary
@@ -1270,6 +1298,21 @@ class LikelihoodScorer(Scorer):
         return likelihood
 
     def _pos_likelihood(self, clade, root_nuc, clade_states, dp_dict):
+        """Return likelihood for a clade assuming nucleotide root_nuc in root (PRIVATE).
+
+        This function is used for recursion in Felsenstein's pruning algorithm.
+        The recursion terminates at terminal nodes.
+
+        :Paramters:
+            clade: Clade
+                A clade for which the likelihood is calculated.
+            root_nuc: str
+                A nucleotide for which the probability is calculated.
+            clade_states: Dict[str, str]
+                A dictionary mapping terminals' names to nucleotides in a column for which likelihood is calculated.
+            dp_dict: Dict[Tuple[str, str], float]
+                A dynamic programming dictionary.
+        """
         if (clade, root_nuc) not in dp_dict:
             if clade.is_terminal():
                 dp_dict[(clade.name, root_nuc)] = (
