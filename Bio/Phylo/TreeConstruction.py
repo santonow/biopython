@@ -1277,7 +1277,7 @@ class LikelihoodScorer(Scorer):
         root_clade = _tree.root
         for i, clade in enumerate(_tree.get_nonterminals()):
             if not clade.name:
-                # to differentiate between nonterminals in DP dictionary
+                # to differentiate between nonterminals in DP dictionary if clades don't have name attribute
                 clade.name = "Nonterminal{}".format(i)
         for i in range(len(alignment[0])):
             # dynamic programming dictionary
