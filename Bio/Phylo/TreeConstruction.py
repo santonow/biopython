@@ -1262,7 +1262,8 @@ class LikelihoodScorer(Scorer):
                         root_nuc=nuc,
                         clade_states=clade_states,
                         dp_dict=dp_dict,
-                    ) * self.evolution_model.stat_params[nuc]
+                    )
+                    * self.evolution_model.stat_params[nuc]
                     for nuc in "ACGT"
                 )
             )
