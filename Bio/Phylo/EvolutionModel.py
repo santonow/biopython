@@ -3,55 +3,64 @@
 """Classes and methods for evolution models."""
 
 import math
-from itertools import permutations
 
 
 class EvolutionModel:
-    """A class representing General Time Reversible (GTR) model.
-
-    All common models (JC69, F81, K80) are a specific cases of GTR.
-    If no arguments to __init__ are provided, defaults to JC69 model.
+    """Base class for evolution models.
 
     :Parameters:
-        exch_params: Dict[Tuple[str, str], float]
-            Exchangeability parameters. Default: {(nuc1, nuc2): 1 for nuc1, nuc2 in permutations("ACGT", 2)}.
-            The model has to be time reversible, so exch_params[(nuc1, nuc2)] == exch_params[(nuc2, nuc1)].
         stat_params: Dict[str, float]
-            Parameters of stationary distribution. Default: {nuc: 0.25 for nuc in "ACGT"}.
-        Q: Dict[Tuple[str, str], float]
-            A rate matrix.
+            A dictionary representing a stationary distribution.
+            Default: {nuc: 0.25 for nuc in "ACGT"} (JC69 model).
     """
 
-    def __init__(self, exch_params=None, stat_params=None):
-        """Initialize the parameters and calculate Q rate matrix."""
-        if not exch_params:
-            exch_params = {(nuc1, nuc2): 1 for nuc1, nuc2 in permutations("ACGT", 2)}
+    def __init__(self, stat_params=None):
+        """Init method for GeneralEvolutionModel."""
         if not stat_params:
-            stat_params = {nuc: 0.25 for nuc in "ACGT"}
-        for nuc1, nuc2 in permutations("ACGT", 2):
-            if exch_params[(nuc1, nuc2)] != exch_params[(nuc2, nuc1)]:
-                raise ValueError(
-                    """Wrong exch_params dict, model has to be time reversible."""
-                )
-        # if not (1 - sum(stat_params.values())) < 0.000001:
-        #     raise ValueError("stat_params values must sum to 1!")
-        self.exch_params = exch_params
-        self.stat_params = stat_params
-        self.Q = {}
-        for nuc1, nuc2 in permutations("ACGT", 2):
-            self.Q[(nuc1, nuc2)] = (
-                self.exch_params[(nuc1, nuc2)] * self.stat_params[nuc2]
-            )
-        for nuc in "ACGT":
-            self.Q[(nuc, nuc)] = -sum(
-                exch_params[(nuc, other_nuc)] * stat_params[other_nuc]
-                for other_nuc in "ACGT"
-                if other_nuc != nuc
-            )
+            self.stat_params = {nuc: 0.25 for nuc in "ACGT"}
+        else:
+            self.stat_params = stat_params
+
+    def get_probability(self, site1, site2, t):
+        """Return probability of evolving site1 to site2 in time t.
+
+        This should be implemented in a subclass.
+        """
+        raise NotImplementedError("Method not implemented!")
+
+
+class F81Model(EvolutionModel):
+    """A class representing Felsenstein81 model.
+
+    :Parameters:
+        stat_params: Dict[str, float]
+            A dictionary representing a stationary distribution.
+            Default: {nuc: 0.25 for nuc in "ACGT"} (JC69 model).
+
+    Examples
+    --------
+    >>> from Bio.Phylo.EvolutionModel import F81Model
+    >>> evo_model = F81Model()
+    >>> evo_model.get_probability("A", "C", t=1)
+    0.18410071547106832
+    >>> evo_model = F81Model(stat_params=dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2])))
+    >>> evo_model.get_probability("A", "C", t=1)
+    0.22233294822941482
+
+    """
+
+    def __init__(self, stat_params=None):
+        """Initialize the parameters, calculate beta."""
+        super().__init__(stat_params)
+        self._beta = 1 / (1 - sum(val ** 2 for val in self.stat_params.values()))
 
     def get_probability(self, site1, site2, t):
         """Calculate probability of evolving site2 to site1 in time t.
 
         The time is measured in expected substitutions per site.
         """
-        return math.exp(self.Q[(site1, site2)] * t)
+        expon = math.exp(-self._beta * t)
+        if site1 == site2:
+            return expon + self.stat_params[site2] * (1 - expon)
+        else:
+            return self.stat_params[site2] * (1 - expon)
