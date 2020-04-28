@@ -40,8 +40,7 @@ class EvolutionModel:
             raise ValueError(
                 "stat_params must represent a valid probability distribution!"
             )
-        else:
-            self._stat_params = value
+        self._stat_params = value
 
 
 class F81Model(EvolutionModel):
