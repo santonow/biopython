@@ -28,6 +28,19 @@ class EvolutionModel:
         """
         raise NotImplementedError("Method not implemented!")
 
+    @property
+    def stat_params(self):
+        """Getter method for stat_params."""
+        return self._stat_params
+
+    @stat_params.setter
+    def stat_params(self, value):
+        """Check whether the stat_params dict represents a valid probability distribution."""
+        if not math.isclose(1, sum(value.values())):
+            raise ValueError("stat_params must represent a valid probability distribution!")
+        else:
+            self._stat_params = value
+
 
 class F81Model(EvolutionModel):
     """A class representing Felsenstein81 model.
@@ -43,7 +56,7 @@ class F81Model(EvolutionModel):
     >>> evo_model = F81Model()
     >>> evo_model.get_probability("A", "C", t=1)
     0.18410071547106832
-    >>> evo_model = F81Model(stat_params=dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2])))
+    >>> evo_model.stat_params = dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2]))
     >>> evo_model.get_probability("A", "C", t=1)
     0.22233294822941482
 
@@ -52,7 +65,6 @@ class F81Model(EvolutionModel):
     def __init__(self, stat_params=None):
         """Initialize the parameters, calculate beta."""
         super().__init__(stat_params)
-        self._beta = 1 / (1 - sum(val ** 2 for val in self.stat_params.values()))
 
     def get_probability(self, site1, site2, t):
         """Calculate probability of evolving site2 to site1 in time t.
@@ -64,3 +76,10 @@ class F81Model(EvolutionModel):
             return expon + self.stat_params[site2] * (1 - expon)
         else:
             return self.stat_params[site2] * (1 - expon)
+
+    @EvolutionModel.stat_params.setter
+    def stat_params(self, value):
+        """Change _beta param every time the stat_params dict is changed."""
+        print("In F81 setter.")
+        EvolutionModel.stat_params.fset(self, value)
+        self._beta = 1 / (1 - sum(val ** 2 for val in self.stat_params.values()))
