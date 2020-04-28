@@ -66,6 +66,7 @@ class F81Model(EvolutionModel):
     def __init__(self, stat_params=None):
         """Initialize the parameters, calculate beta."""
         super().__init__(stat_params)
+        self._beta = 1 / (1 - sum(val ** 2 for val in self.stat_params.values()))
 
     def get_probability(self, site1, site2, t):
         """Calculate probability of evolving site2 to site1 in time t.
