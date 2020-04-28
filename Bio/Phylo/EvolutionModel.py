@@ -37,7 +37,9 @@ class EvolutionModel:
     def stat_params(self, value):
         """Check whether the stat_params dict represents a valid probability distribution."""
         if not math.isclose(1, sum(value.values())):
-            raise ValueError("stat_params must represent a valid probability distribution!")
+            raise ValueError(
+                "stat_params must represent a valid probability distribution!"
+            )
         else:
             self._stat_params = value
 
@@ -80,6 +82,5 @@ class F81Model(EvolutionModel):
     @EvolutionModel.stat_params.setter
     def stat_params(self, value):
         """Change _beta param every time the stat_params dict is changed."""
-        print("In F81 setter.")
         EvolutionModel.stat_params.fset(self, value)
         self._beta = 1 / (1 - sum(val ** 2 for val in self.stat_params.values()))
