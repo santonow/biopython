@@ -1220,7 +1220,7 @@ class LikelihoodScorer(Scorer):
     --------
     >>> from Bio import AlignIO, Phylo
     >>> aln = AlignIO.read(open('TreeConstruction/lk_msa.phy'), 'phylip')
-    >>> aln
+    >>> print(aln)
     SingleLetterAlphabet() alignment with 4 rows and 6 columns
     AACACA Alpha
     AACGCA Beta
@@ -1288,17 +1288,17 @@ class LikelihoodScorer(Scorer):
                 sum(
                     self._pos_likelihood(
                         clade=root_clade,
-                        root_nuc=nuc,
+                        root_symbol=sym,
                         clade_states=clade_states,
                         dp_dict=dp_dict,
                     )
-                    * self.evolution_model.stat_params[nuc]
-                    for nuc in self.evolution_model.symbols
+                    * self.evolution_model.stat_params[sym]
+                    for sym in self.evolution_model.symbols
                 )
             )
         return likelihood
 
-    def _pos_likelihood(self, clade, root_nuc, clade_states, dp_dict):
+    def _pos_likelihood(self, clade, root_symbol, clade_states, dp_dict):
         """Return likelihood for a clade assuming nucleotide root_nuc in root (PRIVATE).
 
         This function is used for recursion in Felsenstein's pruning algorithm.
@@ -1314,24 +1314,24 @@ class LikelihoodScorer(Scorer):
             dp_dict: Dict[Tuple[str, str], float]
                 A dynamic programming dictionary.
         """
-        if (clade, root_nuc) not in dp_dict:
+        if (clade, root_symbol) not in dp_dict:
             if clade.is_terminal():
-                dp_dict[(clade.name, root_nuc)] = (
-                    1 if clade_states[clade.name] == root_nuc else 0
+                dp_dict[(clade.name, root_symbol)] = (
+                    1 if clade_states[clade.name] == root_symbol else 0
                 )
             else:
                 left, right = clade.clades
-                dp_dict[(clade.name, root_nuc)] = sum(
+                dp_dict[(clade.name, root_symbol)] = sum(
                     self.evolution_model.get_probability(
-                        root_nuc, b, left.branch_length
+                        root_symbol, sym, left.branch_length
                     )
-                    * self._pos_likelihood(left, b, clade_states, dp_dict)
-                    * self.evolution_model.get_probability(
-                        root_nuc, c, right.branch_length
+                    * self._pos_likelihood(left, sym, clade_states, dp_dict)
+                    for sym in self.evolution_model.symbols
+                ) * sum(
+                    self.evolution_model.get_probability(
+                        root_symbol, sym, right.branch_length
                     )
-                    * self._pos_likelihood(right, c, clade_states, dp_dict)
-                    for b, c in itertools.product(
-                        self.evolution_model.symbols, repeat=2
-                    )
+                    * self._pos_likelihood(right, sym, clade_states, dp_dict)
+                    for sym in self.evolution_model.symbols
                 )
-        return dp_dict[(clade.name, root_nuc)]
+        return dp_dict[(clade.name, root_symbol)]
