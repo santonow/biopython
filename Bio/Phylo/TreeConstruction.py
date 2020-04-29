@@ -1211,6 +1211,7 @@ class LikelihoodScorer(Scorer):
     """Likelihood scorer.
 
     This is a Felsenstein's pruning algorithm.
+    TODO: Allow for gapped alignments.
 
     :Parameters:
         evolution_model: EvolutionModel
@@ -1292,7 +1293,7 @@ class LikelihoodScorer(Scorer):
                         dp_dict=dp_dict,
                     )
                     * self.evolution_model.stat_params[nuc]
-                    for nuc in "ACGT"
+                    for nuc in self.evolution_model.symbols
                 )
             )
         return likelihood
@@ -1329,6 +1330,6 @@ class LikelihoodScorer(Scorer):
                         root_nuc, c, right.branch_length
                     )
                     * self._pos_likelihood(right, c, clade_states, dp_dict)
-                    for b, c in itertools.product("ACGT", repeat=2)
+                    for b, c in itertools.product(self.evolution_model.symbols, repeat=2)
                 )
         return dp_dict[(clade.name, root_nuc)]
