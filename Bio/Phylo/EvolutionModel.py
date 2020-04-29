@@ -134,7 +134,9 @@ class GTRModel(EvolutionModel):
         super().__init__(stat_params)
         self._symbols = sorted(set(self.stat_params.keys()))
         if not exch_params:
-            exch_params = {(sym1, sym2): 1 for sym1, sym2 in permutations(self._symbols, 2)}
+            exch_params = {
+                (sym1, sym2): 1 for sym1, sym2 in permutations(self._symbols, 2)
+            }
         self._exch_params = self._validate_exch_params(exch_params)
         self._validate_keys(self.stat_params, self.exch_params)
         self._sym_to_ind = {sym: i for i, sym in enumerate(self._symbols)}
