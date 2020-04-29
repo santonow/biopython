@@ -1330,6 +1330,8 @@ class LikelihoodScorer(Scorer):
                         root_nuc, c, right.branch_length
                     )
                     * self._pos_likelihood(right, c, clade_states, dp_dict)
-                    for b, c in itertools.product(self.evolution_model.symbols, repeat=2)
+                    for b, c in itertools.product(
+                        self.evolution_model.symbols, repeat=2
+                    )
                 )
         return dp_dict[(clade.name, root_nuc)]
