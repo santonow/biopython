@@ -4,7 +4,7 @@
 
 import math
 import numpy as np
-from itertools import permutations, product
+from itertools import permutations
 
 
 class EvolutionModel:
