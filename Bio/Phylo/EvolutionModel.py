@@ -186,6 +186,11 @@ class GTRModel(EvolutionModel):
         _eigenvecs_inv = np.linalg.inv(_eigenvecs)
         return Q, _eigenvals, _eigenvecs, _eigenvecs_inv
 
+    @property
+    def symbols(self):
+        """Getter method for symbols."""
+        return self._symbols
+
     @EvolutionModel.stat_params.setter
     def stat_params(self, value):
         """Setter method for stat_params.
