@@ -37,7 +37,7 @@ class EvolutionModel:
 
     @stat_params.setter
     def stat_params(self, value):
-        """stat_params setter method."""
+        """Setter method for stat_params."""
         self._stat_params = self._validate_stat_params(value)
 
     @staticmethod
@@ -88,7 +88,10 @@ class F81Model(EvolutionModel):
 
     @EvolutionModel.stat_params.setter
     def stat_params(self, value):
-        """Change _beta param every time the stat_params dict is changed."""
+        """Setter method for stat_params.
+
+        Change _beta param every time the stat_params dict is changed.
+        """
         EvolutionModel.stat_params.fset(self, value)
         self._beta = 1 / (1 - sum(val ** 2 for val in self.stat_params.values()))
 
@@ -98,15 +101,21 @@ class GTRModel(EvolutionModel):
 
     All common models (JC69, F81, K80) are a specific cases of GTR.
     If no arguments to __init__ are provided, defaults to JC69 model.
-    The specialized class (e.g. F81Model) will generally be faster.
+    With specialized class (e.g. F81Model), the probability computation should generally be faster.
     TODO: Check if it works for arbitrary symbol sets (aminoacids, codons).
 
     :Parameters:
         exch_params: Dict[Tuple[str, str], float]
-            Exchangeability parameters. Default: {(sym1, sym2): 1 for sym1, sym2 in permutations("ACGT", 2)}.
-            The model has to be time reversible, so exch_params[(sym1, sym2)] == exch_params[(sym2, sym1)].
+            Exchangeability parameters. Represents relative rates of substitution.
+            It is common to set one of the rates (e.g. G->T) to one, so the rates are relative to it.
+            Has to be symmetric (so the model can be time-reversible).
+            This relation should be satisfied:
+            for all sym1, sym2 in permutations(symbols, 2):
+            (exch_params[(sym1, sym2)] == exch_params[(sym2, sym1)]) == True
+            Default: {(sym1, sym2): 1 for sym1, sym2 in permutations("ACGT", 2)}.
         stat_params: Dict[str, float]
-            Parameters of stationary distribution. Default: {sym: 0.25 for sym in "ACGT"}.
+            Parameters of stationary distribution. Values must sum to one.
+            Default: {sym: 0.25 for sym in "ACGT"}.
 
     Examples
     --------
@@ -121,20 +130,34 @@ class GTRModel(EvolutionModel):
     """
 
     def __init__(self, stat_params=None, exch_params=None):
-        """Initialize the parameters, calculate eigenvalue decomposition."""
+        """Initialize the parameters, perform spectral decomposition."""
         super().__init__(stat_params)
-        self._symbols = sorted(self.stat_params.keys())
+        self._symbols = sorted(set(self.stat_params.keys()))
         if not exch_params:
-            exch_params = {(nuc1, nuc2): 1 for nuc1, nuc2 in permutations("ACGT", 2)}
+            exch_params = {(sym1, sym2): 1 for sym1, sym2 in permutations(self._symbols, 2)}
         self._exch_params = self._validate_exch_params(exch_params)
+        self._validate_keys(self.stat_params, self.exch_params)
         self._sym_to_ind = {sym: i for i, sym in enumerate(self._symbols)}
         self._Q, self._evals, self._evecs, self._evecs_inv = self._compute_spectral()
+
+    def __str__(self):
+        """Print model parameters."""
+        ret = "GTRModel\n"
+        ret += "Stationary distribution: {}\n".format(self.stat_params)
+        ret += "Excheangability parameters:\n"
+        ret += str(self.exch_params) + "\n"
+        ret += "Rate matrix (Q matrix):\n"
+        ret += str(self._Q)
+        return ret
+
+    def __repr__(self):
+        return "GTRModel({}, {})".format(repr(self.stat_params), repr(self.exch_params))
 
     def get_probability(self, site1, site2, t):
         """Return probability of evolving site1 to site2 in time t.
 
         Basically (V @ exp(lambda * t) @ V^-1)[site1, site2],
-        where V is eigenvectors matrix and lambda is diagonal eigenvalues matrix.
+        where V is an eigenvectors matrix and lambda is a diagonal eigenvalues matrix.
         """
         return (
             self._evecs[self._sym_to_ind[site1], :] * np.exp(self._evals * t)
@@ -143,7 +166,7 @@ class GTRModel(EvolutionModel):
     def _compute_spectral(self):
         """Compute and return eigenvalues and eigenvectors of the Q matrix (PRIVATE).
 
-        Returns Q rate matrix and its eigenvalues, eigenvector matrix and its inverse.
+        Returns Q rate matrix, its eigenvalues, eigenvector matrix and its inverse.
         """
         Q = np.empty((len(self.stat_params.values()), len(self.stat_params.values())))
         for sym1, sym2 in permutations(self._symbols, 2):
@@ -165,7 +188,8 @@ class GTRModel(EvolutionModel):
     def stat_params(self, value):
         """Setter method for stat_params.
 
-        Redo SVD decomposition every time stat_params is changed.
+        Redo spectral decomposition every time stat_params is changed.
+        Validate that the keys in stat_params and exch_params match.
         """
         self._validate_keys(value, self.exch_params)
         EvolutionModel.stat_params.fset(self, value)
@@ -180,7 +204,7 @@ class GTRModel(EvolutionModel):
     def exch_params(self, value):
         """Setter method for exch_params.
 
-        Redo SVD decomposition every time exch_params is changed.
+        Redo spectral decomposition every time exch_params is changed.
         """
         self._validate_keys(self.stat_params, value)
         self._exch_params = self._validate_exch_params(value)
@@ -189,7 +213,7 @@ class GTRModel(EvolutionModel):
     def _validate_exch_params(self, exch_params):
         """Check if exch_params is symmetric (PRIVATE)."""
         for sym1, sym2 in permutations(self._symbols, 2):
-            if exch_params[(sym1, sym2)] != exch_params[(sym2, sym1)]:
+            if not math.isclose(exch_params[(sym1, sym2)], exch_params[(sym2, sym1)]):
                 raise ValueError(
                     "Wrong exch_params dict, model has to be time reversible."
                 )
@@ -203,13 +227,13 @@ class GTRModel(EvolutionModel):
         stat_minus_exch = stat_keys - exch_keys
         if exch_minus_stat:
             raise ValueError(
-                "exch_params has additional keys compared to stat_params: {}".format(
+                "exch_params has additional key(s) compared to stat_params: {}".format(
                     exch_minus_stat
                 )
             )
         if stat_minus_exch:
             raise ValueError(
-                "stat_params has additional keys compared to exch_params: {}".format(
+                "stat_params has additional key(s) compared to exch_params: {}".format(
                     stat_minus_exch
                 )
             )
