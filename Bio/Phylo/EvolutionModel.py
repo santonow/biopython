@@ -145,7 +145,7 @@ class GTRModel(EvolutionModel):
     def __str__(self):
         """Print model parameters."""
         ret = "GTRModel\n"
-        ret += "Stationary distribution: {}\n".format(self.stat_params)
+        ret += f"Stationary distribution: {self.stat_params}\n"
         ret += "Excheangability parameters:\n"
         ret += str(self.exch_params) + "\n"
         ret += "Rate matrix (Q matrix):\n"
@@ -153,7 +153,7 @@ class GTRModel(EvolutionModel):
         return ret
 
     def __repr__(self):
-        return "GTRModel({}, {})".format(repr(self.stat_params), repr(self.exch_params))
+        return f"GTRModel({repr(self.stat_params)}, {repr(self.exch_params)})"
 
     def get_probability(self, site1, site2, t):
         """Return probability of evolving site1 to site2 in time t.
@@ -229,13 +229,9 @@ class GTRModel(EvolutionModel):
         stat_minus_exch = stat_keys - exch_keys
         if exch_minus_stat:
             raise ValueError(
-                "exch_params has additional key(s) compared to stat_params: {}".format(
-                    exch_minus_stat
-                )
+                f"exch_params has additional key(s) compared to stat_params: {exch_minus_stat}"
             )
         if stat_minus_exch:
             raise ValueError(
-                "stat_params has additional key(s) compared to exch_params: {}".format(
-                    stat_minus_exch
-                )
+                f"stat_params has additional key(s) compared to exch_params: {stat_minus_exch}"
             )
