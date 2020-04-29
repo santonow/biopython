@@ -1262,11 +1262,9 @@ class LikelihoodScorer(Scorer):
             alignment: MultipleSeqAlignment
         """
         _tree = copy.deepcopy(tree)
-        if not _tree.is_bifurcating():
-            raise ValueError("The tree provided should be bifurcating.")
-        if not _tree.rooted:
-            _tree.root_at_midpoint()
+        self._validate_tree(_tree)
         # sort tree terminals and alignment
+        # code from ParsimonyScorer.get_score starts
         terms = _tree.get_terminals()
         terms.sort(key=lambda term: term.name)
         alignment.sort()
@@ -1274,6 +1272,7 @@ class LikelihoodScorer(Scorer):
             raise ValueError(
                 "Taxon names of the input tree should be the same with the alignment."
             )
+        # code from ParsimonyScorer.get_score ends
         likelihood = 0
         root_clade = _tree.root
         for i, clade in enumerate(_tree.get_nonterminals()):
@@ -1335,3 +1334,15 @@ class LikelihoodScorer(Scorer):
                     for sym in self.evolution_model.symbols
                 )
         return dp_dict[(clade.name, root_symbol)]
+
+    @staticmethod
+    def _validate_tree(tree):
+        """Check if tree is bifurcating and root it if it's not rooted.
+
+        Code taken from ParsimonyScorer.get_score method.
+        Potentially move it to Scorer and refactor ParsimonyScorer.get_score.
+        """
+        if not tree.is_bifurcating():
+            raise ValueError("The tree provided should be bifurcating.")
+        if not tree.rooted:
+            tree.root_at_midpoint()
