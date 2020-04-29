@@ -22,6 +22,7 @@ class EvolutionModel:
             self._stat_params = {sym: 0.25 for sym in "ACGT"}
         else:
             self._stat_params = self._validate_stat_params(stat_params)
+        self._symbols = sorted(self.stat_params.keys())
 
     def get_probability(self, site1, site2, t):
         """Return probability of evolving site1 to site2 in time t.
@@ -29,6 +30,11 @@ class EvolutionModel:
         This should be implemented in a subclass.
         """
         raise NotImplementedError("Method not implemented!")
+
+    @property
+    def symbols(self):
+        """Getter method for symbols."""
+        return self._symbols
 
     @property
     def stat_params(self):
@@ -39,6 +45,7 @@ class EvolutionModel:
     def stat_params(self, value):
         """Setter method for stat_params."""
         self._stat_params = self._validate_stat_params(value)
+        self._symbols = sorted(self.stat_params.values())
 
     @staticmethod
     def _validate_stat_params(stat_params):
@@ -132,7 +139,6 @@ class GTRModel(EvolutionModel):
     def __init__(self, stat_params=None, exch_params=None):
         """Initialize the parameters, perform spectral decomposition."""
         super().__init__(stat_params)
-        self._symbols = sorted(set(self.stat_params.keys()))
         if not exch_params:
             exch_params = {
                 (sym1, sym2): 1 for sym1, sym2 in permutations(self._symbols, 2)
@@ -185,11 +191,6 @@ class GTRModel(EvolutionModel):
         _eigenvals, _eigenvecs = np.linalg.eig(Q)
         _eigenvecs_inv = np.linalg.inv(_eigenvecs)
         return Q, _eigenvals, _eigenvecs, _eigenvecs_inv
-
-    @property
-    def symbols(self):
-        """Getter method for symbols."""
-        return self._symbols
 
     @EvolutionModel.stat_params.setter
     def stat_params(self, value):
