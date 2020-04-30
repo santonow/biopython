@@ -1211,7 +1211,7 @@ class LikelihoodScorer(Scorer):
     """Likelihood scorer.
 
     This is a Felsenstein's pruning algorithm.
-    TODO: Allow for gapped alignments.
+    Gaps are treated as if they could be any letter from the alphabet.
 
     :Parameters:
         evolution_model: EvolutionModel
@@ -1245,12 +1245,13 @@ class LikelihoodScorer(Scorer):
 
     """
 
-    def __init__(self, evolution_model):
+    def __init__(self, evolution_model, gap_character="-"):
         """Initialize the class."""
         if isinstance(evolution_model, EvolutionModel):
             self.evolution_model = evolution_model
         else:
             raise TypeError("Must provide an EvolutionModel object.")
+        self._gap_character = gap_character
 
     def get_score(self, tree, alignment):
         """Calculate likelihood score using Felsenstein's pruning algorithm.
@@ -1274,7 +1275,6 @@ class LikelihoodScorer(Scorer):
             )
         # code from ParsimonyScorer.get_score ends
         likelihood = 0
-        root_clade = _tree.root
         for i, clade in enumerate(_tree.get_nonterminals()):
             if not clade.name:
                 # to differentiate between nonterminals in DP dictionary if clades don't have name attribute
@@ -1286,7 +1286,7 @@ class LikelihoodScorer(Scorer):
             likelihood += math.log(
                 sum(
                     self._pos_likelihood(
-                        clade=root_clade,
+                        clade=_tree.root,
                         root_symbol=sym,
                         clade_states=clade_states,
                         dp_dict=dp_dict,
@@ -1298,7 +1298,7 @@ class LikelihoodScorer(Scorer):
         return likelihood
 
     def _pos_likelihood(self, clade, root_symbol, clade_states, dp_dict):
-        """Return likelihood for a clade assuming nucleotide root_nuc in root (PRIVATE).
+        """Return likelihood for a clade assuming symbol root_symbol in root (PRIVATE).
 
         This function is used for recursion in Felsenstein's pruning algorithm.
         The recursion terminates at terminal nodes.
@@ -1315,9 +1315,10 @@ class LikelihoodScorer(Scorer):
         """
         if (clade, root_symbol) not in dp_dict:
             if clade.is_terminal():
-                dp_dict[(clade.name, root_symbol)] = (
-                    1 if clade_states[clade.name] == root_symbol else 0
-                )
+                if clade_states[clade.name] == root_symbol or clade_states[clade.name] == self.gap_character:
+                    dp_dict[(clade.name, root_symbol)] = 1
+                else:
+                    dp_dict[(clade.name, root_symbol)] = 0
             else:
                 left, right = clade.clades
                 dp_dict[(clade.name, root_symbol)] = sum(
