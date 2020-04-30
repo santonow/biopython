@@ -1315,7 +1315,10 @@ class LikelihoodScorer(Scorer):
         """
         if (clade, root_symbol) not in dp_dict:
             if clade.is_terminal():
-                if clade_states[clade.name] == root_symbol or clade_states[clade.name] == self.gap_character:
+                if (
+                    clade_states[clade.name] == root_symbol
+                    or clade_states[clade.name] == self.gap_character
+                ):
                     dp_dict[(clade.name, root_symbol)] = 1
                 else:
                     dp_dict[(clade.name, root_symbol)] = 0
