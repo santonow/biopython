@@ -4,7 +4,8 @@
 
 import math
 import numpy as np
-from itertools import permutations
+from itertools import permutations, combinations
+from collections.abc import Mapping, Sequence
 
 
 class EvolutionModel:
@@ -22,7 +23,7 @@ class EvolutionModel:
             self._stat_params = {sym: 0.25 for sym in "ACGT"}
         else:
             self._stat_params = self._validate_stat_params(stat_params)
-        self._symbols = sorted(self.stat_params.keys())
+        self._alphabet = sorted(self.stat_params.keys())
 
     def get_probability(self, site1, site2, t):
         """Return probability of evolving site1 to site2 in time t.
@@ -32,9 +33,9 @@ class EvolutionModel:
         raise NotImplementedError("Method not implemented!")
 
     @property
-    def symbols(self):
+    def alphabet(self):
         """Getter method for symbols."""
-        return self._symbols
+        return self._alphabet
 
     @property
     def stat_params(self):
@@ -45,7 +46,7 @@ class EvolutionModel:
     def stat_params(self, value):
         """Setter method for stat_params."""
         self._stat_params = self._validate_stat_params(value)
-        self._symbols = sorted(self.stat_params.values())
+        self._alphabet = sorted(self.stat_params.keys())
 
     @staticmethod
     def _validate_stat_params(stat_params):
@@ -126,26 +127,44 @@ class GTRModel(EvolutionModel):
 
     Examples
     --------
+    Initialize without any parametes, so it defaults to JC69.
     >>> from Bio.Phylo.EvolutionModel import GTRModel
     >>> evo_model = GTRModel()
     >>> evo_model.get_probability("A", "C", t=1)
     0.1841007154710684
+
+    Change stationary distribution to a non-uniform one - Felsenstein81.
     >>> evo_model.stat_params = dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2]))
     >>> evo_model.get_probability("A", "C", t=1)
     0.22233294822941482
 
+    Now let's set exch_params using a list. It will be now a GTR model.
+    First entry corresponds to A->C and C->A rates, second to A->G and G->A etc.
+    >>> evo_model.exch_params = [1, 2, 3, 4, 5, 6]
+    >>> evo_model.get_probability("A", "C", t=1)
+    0.11773674440501203
+
     """
 
     def __init__(self, stat_params=None, exch_params=None):
-        """Initialize the parameters, perform spectral decomposition."""
+        """Initialize the parameters, perform spectral decomposition.
+
+        :Parameters:
+            stat_params: Dict[str, float]
+                Parameters of stationary distribution. Default: {sym: 0.25 for sym in "ACGT"}.
+            exch_params: Dict[str, float] or Sequence[float]
+                Excheangability parameters. Can be either full dictionary (with 2*n!/((n-2)!2!)) entries) or a sequence.
+                The sequence should have n!/((n-2)!2!) floats, corresponding to combinations(alphabet, 2) position-wise.
+                The alphabet depends on stat_params keys.
+        """
         super().__init__(stat_params)
         if not exch_params:
             exch_params = {
-                (sym1, sym2): 1 for sym1, sym2 in permutations(self._symbols, 2)
+                (sym1, sym2): 1 for sym1, sym2 in permutations(self.alphabet, 2)
             }
         self._exch_params = self._validate_exch_params(exch_params)
         self._validate_keys(self.stat_params, self.exch_params)
-        self._sym_to_ind = {sym: i for i, sym in enumerate(self._symbols)}
+        self._sym_to_ind = {sym: i for i, sym in enumerate(self.alphabet)}
         self._Q, self._evals, self._evecs, self._evecs_inv = self._compute_spectral()
 
     def __str__(self):
@@ -176,15 +195,15 @@ class GTRModel(EvolutionModel):
 
         Returns Q rate matrix, its eigenvalues, eigenvector matrix and its inverse.
         """
-        Q = np.empty((len(self.stat_params.values()), len(self.stat_params.values())))
-        for sym1, sym2 in permutations(self._symbols, 2):
+        Q = np.empty((len(self.alphabet), len(self.alphabet)))
+        for sym1, sym2 in permutations(self.alphabet, 2):
             Q[self._sym_to_ind[sym1], self._sym_to_ind[sym2]] = (
                 self.exch_params[(sym1, sym2)] * self.stat_params[sym2]
             )
-        for sym in self._symbols:
+        for sym in self.alphabet:
             Q[self._sym_to_ind[sym], self._sym_to_ind[sym]] = -sum(
                 self.exch_params[(sym, other_sym)] * self.stat_params[other_sym]
-                for other_sym in self._symbols
+                for other_sym in self._alphabet
                 if other_sym != sym
             )
         Q = Q / -np.sum(np.array(list(self.stat_params.values())) * np.diag(Q))
@@ -213,6 +232,7 @@ class GTRModel(EvolutionModel):
         """Setter method for exch_params.
 
         Redo spectral decomposition every time exch_params is changed.
+        Validate that the keys in stat_params and exch_params match.
         """
         self._validate_keys(self.stat_params, value)
         self._exch_params = self._validate_exch_params(value)
@@ -220,24 +240,44 @@ class GTRModel(EvolutionModel):
 
     def _validate_exch_params(self, exch_params):
         """Check if exch_params is symmetric (PRIVATE)."""
-        for sym1, sym2 in permutations(self._symbols, 2):
-            if not math.isclose(exch_params[(sym1, sym2)], exch_params[(sym2, sym1)]):
-                raise ValueError(
-                    "Wrong exch_params dict, model has to be time reversible."
-                )
-        return exch_params
+        if isinstance(exch_params, Mapping):
+            for sym1, sym2 in permutations(self.alphabet, 2):
+                if not math.isclose(
+                    exch_params[(sym1, sym2)], exch_params[(sym2, sym1)]
+                ):
+                    raise ValueError(
+                        "Wrong exch_params dict, model has to be time reversible."
+                    )
+            ret = dict(exch_params)
+        elif isinstance(exch_params, Sequence):
+            if math.factorial(len(self.alphabet)) / (
+                math.factorial(len(self.alphabet) - 2) * 2
+            ) != len(exch_params):
+                raise ValueError("Wrong number of parameters for exch_params!")
+            ret = {}
+            for val, (sym1, sym2) in zip(
+                exch_params, combinations(sorted(self.alphabet), 2)
+            ):
+                ret[(sym1, sym2)] = val
+                ret[(sym2, sym1)] = val
+        else:
+            raise ValueError(
+                "Can't interpret exch_params as a dict or sequence of values!"
+            )
+        return ret
 
     def _validate_keys(self, stat_params, exch_params):
         """Check if exch_params and stat_params keys are compatible (PRIVATE)."""
-        exch_keys = {x[0] for x in exch_params.keys()}
-        stat_keys = set(stat_params.keys())
-        exch_minus_stat = exch_keys - stat_keys
-        stat_minus_exch = stat_keys - exch_keys
-        if exch_minus_stat:
-            raise ValueError(
-                f"exch_params has additional key(s) compared to stat_params: {exch_minus_stat}"
-            )
-        if stat_minus_exch:
-            raise ValueError(
-                f"stat_params has additional key(s) compared to exch_params: {stat_minus_exch}"
-            )
+        if isinstance(exch_params, Mapping):
+            exch_keys = {x[0] for x in exch_params.keys()}
+            stat_keys = set(stat_params.keys())
+            exch_minus_stat = exch_keys - stat_keys
+            stat_minus_exch = stat_keys - exch_keys
+            if exch_minus_stat:
+                raise ValueError(
+                    f"exch_params has additional key(s) compared to stat_params: {exch_minus_stat}"
+                )
+            if stat_minus_exch:
+                raise ValueError(
+                    f"stat_params has additional key(s) compared to exch_params: {stat_minus_exch}"
+                )
