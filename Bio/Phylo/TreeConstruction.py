@@ -1292,7 +1292,7 @@ class LikelihoodScorer(Scorer):
                         dp_dict=dp_dict,
                     )
                     * self.evolution_model.stat_params[sym]
-                    for sym in self.evolution_model.symbols
+                    for sym in self.evolution_model.alphabet
                 )
             )
         return likelihood
@@ -1325,13 +1325,13 @@ class LikelihoodScorer(Scorer):
                         root_symbol, sym, left.branch_length
                     )
                     * self._pos_likelihood(left, sym, clade_states, dp_dict)
-                    for sym in self.evolution_model.symbols
+                    for sym in self.evolution_model.alphabet
                 ) * sum(
                     self.evolution_model.get_probability(
                         root_symbol, sym, right.branch_length
                     )
                     * self._pos_likelihood(right, sym, clade_states, dp_dict)
-                    for sym in self.evolution_model.symbols
+                    for sym in self.evolution_model.alphabet
                 )
         return dp_dict[(clade.name, root_symbol)]
 
