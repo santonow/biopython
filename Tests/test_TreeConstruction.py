@@ -22,6 +22,9 @@ from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
 from Bio.Phylo.TreeConstruction import ParsimonyScorer
 from Bio.Phylo.TreeConstruction import NNITreeSearcher
 from Bio.Phylo.TreeConstruction import ParsimonyTreeConstructor
+from Bio.Phylo.TreeConstruction import LikelihoodScorer
+from Bio.Phylo.EvolutionModel import F81Model
+from Bio.Phylo.EvolutionModel import GTRModel
 
 
 temp_dir = tempfile.mkdtemp()
@@ -330,6 +333,31 @@ class ParsimonyTreeConstructorTest(unittest.TestCase):
         constructor.starting_tree = None
         best_tree = constructor.build_tree(aln)
         Phylo.write(best_tree, os.path.join(temp_dir, "pars3.tre"), "newick")
+
+
+class LikelihoodScorerTest(unittest.TestCase):
+
+    def test_constructor(self):
+        # check if it works for EvolutionModel object
+        evolution_model = GTRModel()
+        scorer = LikelihoodScorer(evolution_model=evolution_model)
+        # check if it raises exception on some other object
+        with self.assertRaises(TypeError):
+            scorer = LikelihoodScorer(evolution_model="foo")
+
+    def test_ungapped_alignment(self):
+        aln = AlignIO.read(open("TreeConstruction/lk_msa.phy"), "phylip")
+        tree = Phylo.read(open("TreeConstruction/lk.tre"), "newick")
+        evolution_model = F81Model()
+        scorer = LikelihoodScorer(evolution_model=evolution_model)
+        self.assertAlmostEqual(-33.31209847109528, scorer.get_score(tree, aln))
+
+    def test_gapped_alignment(self):
+        aln = AlignIO.read(open("TreeConstruction/lk_msa_gapped.phy"), "phylip")
+        tree = Phylo.read(open("TreeConstruction/lk.tre"), "newick")
+        evolution_model = F81Model()
+        scorer = LikelihoodScorer(evolution_model=evolution_model)
+        self.assertAlmostEqual(-33.26790383621127, scorer.get_score(tree, aln))
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ class EvolutionModel:
 
     @property
     def alphabet(self):
-        """Getter method for symbols."""
+        """Getter method for alphabet."""
         return self._alphabet
 
     @property
@@ -79,7 +79,7 @@ class F81Model(EvolutionModel):
     """
 
     def __init__(self, stat_params=None):
-        """Initialize the paramters, calculate beta."""
+        """Initialize the parameters, calculate beta."""
         super().__init__(stat_params)
         self._beta = 1 / (1 - sum(val ** 2 for val in self.stat_params.values()))
 
@@ -115,7 +115,7 @@ class GTRModel(EvolutionModel):
     :Parameters:
         exch_params: Dict[Tuple[str, str], float]
             Exchangeability parameters. Represents relative rates of substitution.
-            It is common to set one of the rates (e.g. G->T) to one, so the rates are relative to it.
+            It is common to set one of the rates (e.g. G->T) to 1, so the rates are relative to it.
             Has to be symmetric (so the model can be time-reversible).
             This relation should be satisfied:
             for all sym1, sym2 in permutations(symbols, 2):
@@ -183,7 +183,7 @@ class GTRModel(EvolutionModel):
     def get_probability(self, site1, site2, t):
         """Return probability of evolving site1 to site2 in time t.
 
-        Basically (V @ exp(lambda * t) @ V^-1)[site1, site2],
+        Basically more efficient (V @ exp(lambda * t) @ V^-1)[site1, site2],
         where V is an eigenvectors matrix and lambda is a diagonal eigenvalues matrix.
         """
         return (
@@ -224,7 +224,7 @@ class GTRModel(EvolutionModel):
 
     @property
     def exch_params(self):
-        """exch_params getter method."""
+        """Getter method for exch_params."""
         return self._exch_params
 
     @exch_params.setter
