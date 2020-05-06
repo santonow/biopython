@@ -336,7 +336,6 @@ class ParsimonyTreeConstructorTest(unittest.TestCase):
 
 
 class LikelihoodScorerTest(unittest.TestCase):
-
     def test_constructor(self):
         # check if it works for EvolutionModel object
         evolution_model = GTRModel()
