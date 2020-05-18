@@ -153,9 +153,8 @@ class GTRModel(EvolutionModel):
             stat_params: Dict[str, float]
                 Parameters of stationary distribution. Default: {sym: 0.25 for sym in "ACGT"}.
             exch_params: Dict[str, float] or Sequence[float]
-                Excheangability parameters. Can be either full dictionary (with 2*n!/((n-2)!2!)) entries) or a sequence.
+                Excheangability parameters. Can be either full dictionary (with n(n-1) entries) or a sequence.
                 The sequence should have n!/((n-2)!2!) floats, corresponding to combinations(alphabet, 2) position-wise.
-                The alphabet depends on stat_params keys.
         """
         super().__init__(stat_params)
         if not exch_params:
@@ -239,7 +238,7 @@ class GTRModel(EvolutionModel):
         self._Q, self._evals, self._evecs, self._evecs_inv = self._compute_spectral()
 
     def _validate_exch_params(self, exch_params):
-        """Check if exch_params is symmetric (PRIVATE)."""
+        """Check if exch_params is symmetric or if it has proper length (PRIVATE)."""
         if isinstance(exch_params, Mapping):
             for sym1, sym2 in permutations(self.alphabet, 2):
                 if not math.isclose(
