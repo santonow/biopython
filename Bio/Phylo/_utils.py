@@ -326,6 +326,8 @@ def draw(
     axes=None,
     branch_labels=None,
     label_colors=None,
+    save=False,
+    save_name=0,
     *args,
     **kwargs
 ):
@@ -640,3 +642,26 @@ def draw(
 
     if do_show:
         plt.show()
+    if save:
+        plt.savefig(str(save_name) + ".png")
+        
+def visualize_changes(trees_list):
+    import os
+    import shutil
+    current = os.getcwd()
+    print(current)
+    if not os.path.exists(current+"/plot_temp1"):
+        os.mkdir("plot_temp1")
+    os.chdir(current+"/plot_temp1")
+    for i in range(len(trees_list)):
+        draw(trees_list[i], do_show=False,save=True, save_name=i)
+    def generate_gif():
+        import imageio
+        imageio.help("GIF-FI")
+        images = []
+        with imageio.get_writer(current+'/changes.gif', mode='I', duration = 1) as writer:
+            for filename in os.listdir(os.getcwd()):
+                image = imageio.imread(filename)
+                writer.append_data(image)
+    generate_gif()
+    shutil.rmtree(current+"/plot_temp1")
