@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright 2000-2001 by Brad Chapman.  All rights reserved.
 # Revisions copyright 2007-2003 by Peter Cock. All rights reserved.
 # This code is part of the Biopython distribution and governed by its
@@ -28,7 +27,6 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 from Bio.Align import AlignInfo
 from Bio import AlignIO
-from Bio.SubsMat import FreqTable
 from Bio.Align import MultipleSeqAlignment
 
 
@@ -750,9 +748,7 @@ A  7.0 0.0 0.0 0.0
         self.assertAlmostEqual(value, 88.42, places=2)
         value = align_info.information_content(chars_to_ignore=["N"])
         self.assertAlmostEqual(value, 287.55, places=2)
-        e_freq = {"G": 0.25, "C": 0.25, "A": 0.25, "T": 0.25}
-        e_freq_table = FreqTable.FreqTable(e_freq, FreqTable.FREQ,
-                                           IUPAC.unambiguous_dna)
+        e_freq_table = {"G": 0.25, "C": 0.25, "A": 0.25, "T": 0.25}
         value = align_info.information_content(e_freq_table=e_freq_table,
                                                chars_to_ignore=["N"])
         self.assertAlmostEqual(value, 287.55, places=2)
@@ -941,7 +937,7 @@ A  7.0 0.0 0.0 0.0
         self.assertIsInstance(consensus, Seq)
         self.assertEqual(consensus, "NTNGCNTNNNNNGNNGGNTGGNTCN")
         self.assertEqual(str(alignment), """\
-Gapped(IUPACAmbiguousDNA(), '-') alignment with 3 rows and 25 columns
+Alignment with 3 rows and 25 columns
 CCCTTCTTGTCTTCAGCGTTTCTCC EAS54_6_R1_2_1_413_324
 TTGGCAGGCCAAGGCCGATGGATCA EAS54_6_R1_2_1_540_792
 GTTGCTTCTGGCGTGGGTGGGGGGG EAS54_6_R1_2_1_443_348""")
