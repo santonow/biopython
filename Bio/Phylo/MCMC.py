@@ -1,13 +1,14 @@
-# Copyright (C) 2020 by Stanislaw Antonowicz (stas.antonowicz@gmail.com)
+# Copyright (C) 2020 by Magda Grynkiewicz (magda.markowska@gmail.com)
 
 """Classes and methods for evolution models."""
 
 import random
-
 import math
-import numpy as np
-from itertools import permutations, combinations
-from collections.abc import Mapping, Sequence
+from Bio import Phylo
+from Bio.Phylo.TreeConstruction import DistanceCalculator
+from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
+from Bio import AlignIO
+from Bio.Phylo.EvolutionModel import F81Model
 
 
 class Stepper:
@@ -75,14 +76,12 @@ class LocalWithoutClockStepper(Stepper):
 
     Examples
     --------
-    >>> from Bio.Phylo.EvolutionModel import F81Model
-    >>> evo_model = F81Model()
-    >>> evo_model.get_probability("A", "C", t=1)
-    0.18410071547106832
-    >>> evo_model.stat_params = dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2]))
-    >>> evo_model.get_probability("A", "C", t=1)
-    0.22233294822941482
-
+    >>> from Bio.Phylo.MCMC import LocalWithoutClockStepper
+    >>> import copy
+    >>> stepper = LocalWithoutClockStepper()
+    >>> tree = Phylo.read('ncbi_taxonomy.xml', 'phyloxml')
+    >>> new_tree = copy.deepcopy(tree)
+    >>> stepper.perform_step(tree)
     """
 
     def __init__(self, size_param=None):
@@ -109,7 +108,47 @@ class LocalWithoutClockStepper(Stepper):
             while len(helper_path) < 4:
                 helper_clade = all_clades.pop()
                 helper_path = [first_clade] + tree.trace(first_clade, helper_clade)
-            path = helper_path[0, 4]
+            path = helper_path[0:4]
             self._change_path_length(path)
-
             return tree
+
+
+class SamplerMCMC:
+    """A class representing MCMC sampling scheme.
+
+    :Parameters:
+        steps_param: Dict[Stepper, float]
+            A dictionary representing MCMC steps distribution.
+            Default: {LocalWithoutMolecularClock(): 1}.
+
+    Examples
+    --------
+    >>> from Bio.Phylo.MCMC import SamplerMCMC
+    >>> sampler = SamplerMCMC()
+    """
+
+    def __init__(self, steps_param=None):
+        """Init method for Stepper."""
+        if not steps_param:
+            self._steps_param = {LocalWithoutClockStepper : 1}
+        else:
+            self._steps_param = self._validate_steps_param(steps_param)
+
+    @staticmethod
+    def _validate_steps_params(steps_params):
+        """Check whether the steps_params dict represents a valid probability distribution (PRIVATE)."""
+        if not math.isclose(1, sum(steps_params.values())):
+            raise ValueError(
+                "steps_params must represent a valid probability distribution!"
+            )
+        return steps_params
+
+    def get_results(self, msa, no_iterations, burn_in=0):
+        """Perform MCMC sampling procedure.
+
+        1. Construct initial tree from MultipleSequenceAlignment using UPGMA.
+        2. For no_iterations perform single step randomly chosen according to steps distribution.
+        3. Check if the step is accepted.
+        4. Return list of all trees and likelihoods.
+        """
+        return True
