@@ -175,7 +175,7 @@ class SamplerMCMC:
         current_tree = constructor.upgma(distance_matrix)
 
         # calc
-        likelihood_current = SamplerMCMC.scorer.get_score(current_tree, msa)
+        likelihood_current = self.scorer.get_score(current_tree, msa)
         print(likelihood_current)
 
         return True
