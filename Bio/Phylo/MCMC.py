@@ -141,7 +141,6 @@ class SamplerMCMC:
         self.likelihoods = []
         self.changed_backbone_nodes = []
         self.changed_branching_nodes = []
-        self.scorer = LikelihoodScorer(evolution_model=GTRModel())
 
     @staticmethod
     def _validate_steps_params(steps_params):
@@ -175,7 +174,8 @@ class SamplerMCMC:
         current_tree = constructor.upgma(distance_matrix)
 
         # calc
-        likelihood_current = self.scorer.get_score(current_tree, msa)
+        scorer = LikelihoodScorer(evolution_model=GTRModel())
+        likelihood_current = scorer.get_score(current_tree, msa)
         print(likelihood_current)
 
         return True
