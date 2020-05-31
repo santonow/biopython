@@ -177,5 +177,6 @@ class SamplerMCMC:
         likelihood_current = SamplerMCMC.scorer.get_score(current_tree, msa)
         print("\nPhylogenetic Tree\n===================")
         Phylo.draw_ascii(current_tree)
+        print(likelihood_current)
 
-        return print(likelihood_current)
+        return True
