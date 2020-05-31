@@ -4,10 +4,12 @@
 
 import random
 import math
+import matplotlib as plt
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
 from Bio import AlignIO
+from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.EvolutionModel import F81Model
 
 
@@ -130,7 +132,7 @@ class SamplerMCMC:
     def __init__(self, steps_param=None):
         """Init method for Stepper."""
         if not steps_param:
-            self._steps_param = {LocalWithoutClockStepper : 1}
+            self._steps_param = {LocalWithoutClockStepper: 1}
         else:
             self._steps_param = self._validate_steps_param(steps_param)
 
@@ -143,12 +145,25 @@ class SamplerMCMC:
             )
         return steps_params
 
-    def get_results(self, msa, no_iterations, burn_in=0):
+    def get_results(self, msa, no_iterations=1000, burn_in=0, plot=False):
         """Perform MCMC sampling procedure.
 
         1. Construct initial tree from MultipleSequenceAlignment using UPGMA.
         2. For no_iterations perform single step randomly chosen according to steps distribution.
         3. Check if the step is accepted.
-        4. Return list of all trees and likelihoods.
+        4. Return list[burn_in: no_interations] of: tree, no_of_consecutive_tree_appearances, likelihood, changed_backbone_nodes, changed_branching_nodes if tree structure unchanged - empty list.
+        5. if plot==True: plot likelihoods.
         """
+        # validate input
+        if not isinstance(msa, MultipleSeqAlignment):
+            raise TypeError("Arg msa must be a MultipleSeqAlignment object.")
+
+        # build starting tree from MSA using UPGMA algorithm
+        calculator = DistanceCalculator("identity")
+        distance_matrix = calculator.get_distance(msa)
+        constructor = DistanceTreeConstructor()
+        current_tree = constructor.upgma(distance_matrix)
+        print("\nPhylogenetic Tree\n===================")
+        Phylo.draw_ascii(current_tree)
+
         return True
