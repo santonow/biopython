@@ -10,7 +10,7 @@ from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
 from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
-from Bio.Phylo.EvolutionModel import F81Model
+from Bio.Phylo.EvolutionModel import F81Model, GTRModel, LikelihoodScorer
 
 
 class Stepper:
@@ -135,6 +135,12 @@ class SamplerMCMC:
             self._steps_param = {LocalWithoutClockStepper: 1}
         else:
             self._steps_param = self._validate_steps_param(steps_param)
+        self.trees = []
+        self.no_of_consecutive_tree_appearances = []
+        self.likelihoods = []
+        self.changed_backbone_nodes = []
+        self.changed_branching_nodes = []
+        self.scorer = LikelihoodScorer(evolution_model=GTRModel())
 
     @staticmethod
     def _validate_steps_params(steps_params):
@@ -151,19 +157,25 @@ class SamplerMCMC:
         1. Construct initial tree from MultipleSequenceAlignment using UPGMA.
         2. For no_iterations perform single step randomly chosen according to steps distribution.
         3. Check if the step is accepted.
-        4. Return list[burn_in: no_interations] of: tree, no_of_consecutive_tree_appearances, likelihood, changed_backbone_nodes, changed_branching_nodes if tree structure unchanged - empty list.
+        4. Return list[burn_in: no_interations] of: trees, no_of_consecutive_tree_appearances, likelihoods, changed_backbone_nodes, changed_branching_nodes if tree structure unchanged - empty list.
         5. if plot==True: plot likelihoods.
         """
         # validate input
         if not isinstance(msa, MultipleSeqAlignment):
             raise TypeError("Arg msa must be a MultipleSeqAlignment object.")
 
+        if not no_iterations > burn_in:
+            raise ValueError("no_interations must be greater than burn_in")
+
         # build starting tree from MSA using UPGMA algorithm
         calculator = DistanceCalculator("identity")
         distance_matrix = calculator.get_distance(msa)
         constructor = DistanceTreeConstructor()
         current_tree = constructor.upgma(distance_matrix)
+
+        # calc
+        likelihood_current = SamplerMCMC.scorer.get_score(current_tree, msa)
         print("\nPhylogenetic Tree\n===================")
         Phylo.draw_ascii(current_tree)
 
-        return True
+        return print(likelihood_current)
