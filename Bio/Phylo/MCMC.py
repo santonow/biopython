@@ -8,9 +8,10 @@ import matplotlib as plt
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
+from Bio.Phylo.TreeConstruction import LikelihoodScorer
 from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
-from Bio.Phylo.EvolutionModel import F81Model, GTRModel, LikelihoodScorer
+from Bio.Phylo.EvolutionModel import GTRModel
 
 
 class Stepper:
@@ -175,8 +176,6 @@ class SamplerMCMC:
 
         # calc
         likelihood_current = SamplerMCMC.scorer.get_score(current_tree, msa)
-        print("\nPhylogenetic Tree\n===================")
-        Phylo.draw_ascii(current_tree)
         print(likelihood_current)
 
         return True
