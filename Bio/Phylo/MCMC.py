@@ -1,10 +1,11 @@
 # Copyright (C) 2020 by Magda Grynkiewicz (magda.markowska@gmail.com)
 
-"""Classes and methods for evolution models."""
+"""Classes and methods for MCMC sampling procedure."""
 
 import random
 import math
 import matplotlib as plt
+import copy
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
@@ -18,16 +19,15 @@ class Stepper:
     """Base class for one simulation step.
 
     :Parameters:
-        size_param: double
+        size_param: float
             Step size parameter sometimes called tuning parameter.
-            Should be positive number.
-            Default: 1.
+            Should be positive.
     """
 
-    def __init__(self, size_param=None):
+    def __init__(self, size_param=False):
         """Init method for Stepper."""
         if not size_param:
-            self._size_param = 1
+            raise ValueError("!")
         else:
             self._size_param = self._validate_size_param(size_param)
 
@@ -37,19 +37,6 @@ class Stepper:
         This should be implemented in a subclass.
         """
         raise NotImplementedError("Method not implemented!")
-
-    def _change_path_length(self, path):
-        """Change all branch_length for clades in path by factor of size_param (PRIVATE).
-
-        Path is a list of consecutive clades from tree.
-        Changes branch lengths in place.
-        """
-        path_length = len(path)
-        for i in range(path_length - 1):
-            if path[i + 1].is_parent_of(path[i]):
-                path[i].branch_length *= self.size_param
-            else:
-                path[i + 1].branch_length *= self.size_param
 
     @property
     def size_param(self):
@@ -63,9 +50,9 @@ class Stepper:
 
     @staticmethod
     def _validate_size_param(size_param):
-        """Check whether the size_param is greater than zero (PRIVATE)."""
-        if size_param <= 0:
-            raise ValueError("size_param must a positive number!")
+        """Check the size_param, should be positive number (PRIVATE)."""
+        if size_param <= 0 or not isinstance(size_param, float):
+            raise ValueError("size_param must be a positive float!")
         return size_param
 
 
@@ -73,9 +60,10 @@ class LocalWithoutClockStepper(Stepper):
     """A class representing local step without the molecular clock.
 
     :Parameters:
-        size_param: double
+        size_param: float
             Step size parameter sometimes called tuning parameter.
-            Default: 1.
+            Lambda parameter which rescales the length of modified branch.
+            Should be positive float.
 
     Examples
     --------
@@ -90,6 +78,80 @@ class LocalWithoutClockStepper(Stepper):
     def __init__(self, size_param=None):
         """Initialize the size parameter."""
         super().__init__(size_param)
+
+    def _change_path_length(self, path):
+        """Change all branch_length for clades in path by factor of size_param (PRIVATE).
+
+        Path is a list of consecutive clades from tree.
+        Changes branch lengths in place.
+        """
+        path_length = len(path)
+        for i in range(path_length - 1):
+            if path[i + 1].is_parent_of(path[i]):
+                path[i].branch_length *= self.size_param
+            else:
+                path[i + 1].branch_length *= self.size_param
+
+    def perform_step(self, tree):
+        """Return new_tree after performing step on tree.
+
+        1. Randomly select 3 consecutive branches with total length m.
+        2. Resize m: m' = m * exp(size_param * (U-0.5)) where U ~ uniform[0,1].
+        3. Randomly select one of the two outgoing centre branches.
+        4. Regraft the selected branch to uniformly chosen position from 0 to m'.
+        """
+        leafs = tree.get_terminals()
+        if len(leafs) < 3:
+            raise ValueError("Tree must have at least 3 leafs!")
+        else:
+            all_clades = leafs + tree.get_nonterminals()
+            random.shuffle(all_clades)
+            first_clade = all_clades.pop()
+            helper_clade = all_clades.pop()
+            helper_path = [first_clade] + tree.trace(first_clade, helper_clade)
+            while len(helper_path) < 4:
+                helper_clade = all_clades.pop()
+                helper_path = [first_clade] + tree.trace(first_clade, helper_clade)
+            path = helper_path[0:4]
+            self._change_path_length(path)
+            return tree
+
+
+class ChangeEvolutionParamStepper(Stepper):
+    """A class representing step which changes one randomly chosen parameter of EvolutionModel.
+
+    :Parameters:
+        size_param: float
+            Step size parameter sometimes called tuning parameter.
+            Standard deviation for random change of one of EvolutionModel params.
+            Should be positive float.
+
+    Examples
+    --------
+    >>> from Bio.Phylo.MCMC import ChangeEvolutionParamStepper
+    >>> import copy
+    >>> stepper = ChangeEvolutionParamStepper()
+    >>> tree = Phylo.read('ncbi_taxonomy.xml', 'phyloxml')
+    >>> new_tree = copy.deepcopy(tree)
+    >>> stepper.perform_step(tree)
+    """
+
+    def __init__(self, size_param=None):
+        """Initialize the size parameter."""
+        super().__init__(size_param)
+
+    def _change_path_length(self, path):
+        """Change all branch_length for clades in path by factor of size_param (PRIVATE).
+
+        Path is a list of consecutive clades from tree.
+        Changes branch lengths in place.
+        """
+        path_length = len(path)
+        for i in range(path_length - 1):
+            if path[i + 1].is_parent_of(path[i]):
+                path[i].branch_length *= self.size_param
+            else:
+                path[i + 1].branch_length *= self.size_param
 
     def perform_step(self, tree):
         """Return new_tree after performing step on tree.
@@ -122,7 +184,8 @@ class SamplerMCMC:
     :Parameters:
         steps_param: Dict[Stepper, float]
             A dictionary representing MCMC steps distribution.
-            Default: {LocalWithoutMolecularClock(): 1}.
+            Default: {LocalWithoutMolecularClock(1): 1}.
+            Each key must be an instance of Stepper class, please specify stepper inside parametrs here.
 
     Examples
     --------
@@ -133,7 +196,7 @@ class SamplerMCMC:
     def __init__(self, steps_param=None):
         """Init method for Stepper."""
         if not steps_param:
-            self._steps_param = {LocalWithoutClockStepper: 1}
+            self._steps_param = {LocalWithoutClockStepper(): 1}
         else:
             self._steps_param = self._validate_steps_param(steps_param)
         self.trees = []
@@ -177,5 +240,13 @@ class SamplerMCMC:
         scorer = LikelihoodScorer(evolution_model=GTRModel())
         likelihood_current = scorer.get_score(current_tree, msa)
         print(likelihood_current)
+
+        # initializing Stepper
+
+        for _ in range(no_iterations):
+
+            # one step
+            proposal_tree = copy.deepcopy(current_tree)
+            stepper = list(self._steps_param.keys())[random.randint(len(self._steps_param))]
 
         return True
