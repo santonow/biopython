@@ -13,6 +13,8 @@ from Bio.Phylo.TreeConstruction import LikelihoodScorer
 from Bio import AlignIO
 from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.EvolutionModel import GTRModel
+from Bio.Phylo.EvolutionModel import EvolutionModel
+from Bio.Phylo.EvolutionModel import F81Model
 
 
 class Stepper:
@@ -76,7 +78,7 @@ class LocalWithoutClockStepper(Stepper):
     """
 
     def __init__(self, size_param=None):
-        """Initialize the size parameter."""
+        """Initialize the class."""
         super().__init__(size_param)
 
     def _change_path_length(self, path):
@@ -136,46 +138,54 @@ class ChangeEvolutionParamStepper(Stepper):
     >>> stepper.perform_step(tree)
     """
 
-    def __init__(self, size_param=None):
-        """Initialize the size parameter."""
+    def __init__(self, evolution_model, size_param=None):
+        """Initialize the class."""
         super().__init__(size_param)
+        if isinstance(evolution_model, EvolutionModel):
+            self.evolution_model = evolution_model
+        else:
+            raise TypeError("Must provide an EvolutionModel object.")
 
-    def _change_path_length(self, path):
-        """Change all branch_length for clades in path by factor of size_param (PRIVATE).
+    def _change_stat_params(stat_params, standard_deviation):
+        """Return new stat_params after randomly changing one of them (PRIVATE).
 
-        Path is a list of consecutive clades from tree.
-        Changes branch lengths in place.
+        2. Randomly choose one of the parameters and add random.gauss(0, standard_deviation).
+        3. Change randomly chosen second parameter accordingly to retain distribution properties.
         """
-        path_length = len(path)
-        for i in range(path_length - 1):
-            if path[i + 1].is_parent_of(path[i]):
-                path[i].branch_length *= self.size_param
-            else:
-                path[i + 1].branch_length *= self.size_param
+        new_stat_params = copy.deepcopy(stat_params)
+        symbols = [*new_stat_params.keys()]
+        random.shuffle(symbols)
+        symbol_to_change = symbols.pop()
+        random_update = random.gauss(0, standard_deviation)
+        if new_stat_params[symbol_to_change] + random_update <= 0 or new_stat_params[symbol_to_change] + random_update >= 1:
+            pass
+        else:
+            new_stat_params[symbol_to_change] += random_update
+            second_symbol = symbols.pop()
+            sum_without_second = sum(new_stat_params.values()) - new_stat_params[second_symbol]
+            new_stat_params[second_symbol] = 1 - sum_without_second
+        return new_stat_params
 
     def perform_step(self, tree):
-        """Return new_tree after performing step on tree.
+        """Return new ModelEvolution object with changed parameters.
 
-        1. Randomly select 3 consecutive branches with total length m.
-        2. Resize m: m' = m * exp(size_param * (U-0.5)) where U ~ uniform[0,1].
-        3. Randomly select one of the two outgoing centre branches.
-        4. Regraft the selected branch to uniformly chosen position from 0 to m'.
+        1. Check EvolutionModel subclass, for GTR randomly choose stat_params or exch_params.
+        2. Change randomly chosen parameters.
         """
-        leafs = tree.get_terminals()
-        if len(leafs) < 3:
-            raise ValueError("tree must have at least 3 leafs!")
+        # we change stat_params for F81 Evolution model - only params for this subclass
+        if isinstance(self.evolution_model, F81Model):
+            new_stat_params = self._change_stat_params(self.evolution_model.stat_params)
+            new_evolution_model = F81Model(stat_params=new_stat_params)
+
+        # for GTR Evolution model we randomly change either stat_params or exch_params
+        elif random.random() < 0.5:
+            new_stat_params = self._change_stat_params(self.evolution_model.stat_params)
+            new_evolution_model = GTRModel(stat_params=new_stat_params, exch_params=self.evolution_model.exch_params)
         else:
-            all_clades = leafs + tree.get_nonterminals()
-            random.shuffle(all_clades)
-            first_clade = all_clades.pop()
-            helper_clade = all_clades.pop()
-            helper_path = [first_clade] + tree.trace(first_clade, helper_clade)
-            while len(helper_path) < 4:
-                helper_clade = all_clades.pop()
-                helper_path = [first_clade] + tree.trace(first_clade, helper_clade)
-            path = helper_path[0:4]
-            self._change_path_length(path)
-            return tree
+            new_exch_params = self._change_exch_params(self.evolution_model.exch_params)
+            new_evolution_model = F81Model(stat_params=self.evolution_model.stat_params, exch_params=new_exch_params)
+
+        return new_evolution_model
 
 
 class SamplerMCMC:
