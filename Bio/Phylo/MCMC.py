@@ -534,9 +534,8 @@ class SamplerMCMC:
                     self.no_of_consecutive_parameters_appearances.append(1)
 
         if plot:
-            likelihoods_plot = self._plot_likelihoods(self.all_likelihoods[burn_in:])
-            likelihoods_plot.show()
-            likelihoods_plot.close()
+            self._plot_likelihoods(self.all_likelihoods[burn_in:])
+            plt.show()
 
         if index_tree > 0:
             results_tree = [
@@ -595,8 +594,8 @@ class SamplerMCMC:
             color="blue",
             label="LocalWithoutClockStepper_likelihoods",
         )
-        figure.axhline(
+        plt.axhline(
             maximum, linestyle="dashed", color="red", label="maximum_likelihood_found"
         )
-        figure.legend()
+        plt.legend()
         return figure
