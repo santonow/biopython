@@ -4,7 +4,7 @@
 
 import random
 import math
-import matplotlib as plt
+import matplotlib.pyplot as plt
 import copy
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceCalculator
@@ -26,12 +26,9 @@ class Stepper:
             Should be positive.
     """
 
-    def __init__(self, size_param=False):
+    def __init__(self, size_param=None):
         """Init method for Stepper."""
-        if not size_param:
-            raise ValueError("!")
-        else:
-            self._size_param = self._validate_size_param(size_param)
+        self._size_param = self._validate_size_param(size_param)
 
     def perform_step(self, tree):
         """Return new_tree after performing step on tree.
@@ -92,9 +89,9 @@ class LocalWithoutClockStepper(Stepper):
         """
         # get list of 4 consecutive clades
 
-        random_path = self._get_path(tree)
+        random_path = self._get_random_path(tree)
         while random_path == []:
-            random_path = self._get_path(tree)
+            random_path = self._get_random_path(tree)
 
         a = random_path[0]
         u = random_path[1]
@@ -153,10 +150,10 @@ class LocalWithoutClockStepper(Stepper):
             self._set_dist(v, u, x_prim - y_prim)
             self._set_dist(u, c, em_prim - x_prim)
 
-        Phylo.draw_ascii(tree)
         return hastings_ratio, random_path, changed_branching_node
 
-    def _get_path(self, tree, no_of_clades=4):
+    @staticmethod
+    def _get_random_path(tree, no_of_clades=4):
         """Get random path made of (no_of_clades - 1) consecutive branches (PRIVATE).
 
         Path is represented by a list of no_of_clades consecutive clades from tree.
@@ -320,7 +317,6 @@ class ChangeEvolutionParamStepper(Stepper):
                 exch_params=new_exch_params,
             )
 
-        print(self.evolution_model.stat_params)
         return new_evolution_model
 
     @staticmethod
@@ -401,18 +397,41 @@ class SamplerMCMC:
         self.trees = []
         self.no_of_consecutive_tree_appearances = []
         self.likelihoods = []
+        self.all_likelihoods = []
         self.changed_backbone_nodes = []
         self.changed_branching_node = []
         self.parameters = []
         self.no_of_consecutive_parameters_appearances = []
 
-    def get_results(self, msa, no_iterations=1000, burn_in=0, plot=False):
+    def get_results(
+        self,
+        msa,
+        no_iterations=1000,
+        burn_in=0,
+        plot=False,
+        start_from_random_tree=False,
+    ):
         """Perform MCMC sampling procedure.
 
-        1. Construct initial tree from MultipleSequenceAlignment using UPGMA.
+        Arguments:
+        - msa - MulitipleSequenceAlignment object,
+        - no_iterations - number of MCMC sampling steps,
+        - burn_in - all outputs from LocalWithoutClockStepper steps will NOT include first burn_in elements,
+        - plot - if True at the end of the procedure a plot of all likelihoods strating from burn in will be plotted,
+        - start_from_random_tree - if True - the starting tree will be random, if False - constructed using UPGMA.
+        1. Construct initial tree from MultipleSequenceAlignment.
         2. For no_iterations perform single step randomly chosen according to steps distribution.
         3. Check if the step is accepted.
-        4. Return list[burn_in: no_interations] of: trees, no_of_consecutive_tree_appearances, likelihoods, changed_backbone_nodes, changed_branching_nodes if tree structure unchanged - empty list.
+        4. Return list of lists:
+        4.1 for LocalWithoutClockStepper steps starting from first tree after burn_in:
+        - trees,
+        - no_of_consecutive_tree_appearances,
+        - likelihoods,
+        - changed_backbone_nodes,
+        - changed_branching_node - empty if tree topology not changed,
+        4.2 for ChangeEvolutionParamStepper:
+        - parameters,
+        - no_of_consecutive_parameters_appearances.
         5. if plot==True: plot likelihoods.
         """
         # validate input
@@ -422,23 +441,29 @@ class SamplerMCMC:
         if not no_iterations > burn_in:
             raise ValueError("no_interations must be greater than burn_in")
 
-        # build starting tree from MSA using UPGMA algorithm
-        calculator = DistanceCalculator("identity")
-        distance_matrix = calculator.get_distance(msa)
-        constructor = DistanceTreeConstructor()
-        current_tree = constructor.upgma(distance_matrix)
+        # build starting tree depending on start_from_random_tree argument value
+        # start_from_random_tree=True
+        if start_from_random_tree:
+            current_tree = self._randomized_tree_from_msa(msa)
+        # start_from_random_tree=False, use UPGMA
+        else:
+            calculator = DistanceCalculator("identity")
+            distance_matrix = calculator.get_distance(msa)
+            constructor = DistanceTreeConstructor()
+            current_tree = constructor.upgma(distance_matrix)
 
         # calculate initial likelihood
         scorer = LikelihoodScorer(self._evolution_model)
         likelihood_current = scorer.get_score(current_tree, msa)
-        print(likelihood_current)
 
         index_tree = 0
         index_param = 0
+        index_for_burn_in = 0
 
         self.no_of_consecutive_tree_appearances.append(1)
         self.trees.append(current_tree)
         self.likelihoods.append(likelihood_current)
+        self.all_likelihoods.append(likelihood_current)
         self.changed_backbone_nodes.append([])
         self.changed_branching_node.append("")
         if isinstance(self._evolution_model, F81Model):
@@ -466,6 +491,7 @@ class SamplerMCMC:
                 acceptance_ratio = (
                     proposal_likelihood - likelihood_current + math.log(hastings_ratio)
                 )
+
                 # the step is NOT accepted
                 if acceptance_ratio < math.log(random.random()):
                     self.no_of_consecutive_tree_appearances[index_tree] += 1
@@ -478,9 +504,14 @@ class SamplerMCMC:
                     self.likelihoods.append(likelihood_current)
                     self.changed_backbone_nodes.append(backbone)
                     self.changed_branching_node.append(branching)
+                # always add current likelihood for plotting
+                self.all_likelihoods.append(likelihood_current)
+                while sum(self.no_of_consecutive_tree_appearances) <= burn_in:
+                    index_for_burn_in += 1
+
             else:
-                self._evolution_model = stepper.perform_step()
-                scorer = LikelihoodScorer(evolution_model=self._evolution_model)
+                proposal_evolution_model = stepper.perform_step()
+                scorer = LikelihoodScorer(evolution_model=proposal_evolution_model)
                 proposal_likelihood = scorer.get_score(current_tree, msa)
                 acceptance_ratio = proposal_likelihood - likelihood_current
                 # the step is NOT accepted
@@ -490,6 +521,7 @@ class SamplerMCMC:
                     index_param += 1
                     current_tree = proposal_tree
                     likelihood_current = proposal_likelihood
+                    self._evolution_model = proposal_evolution_model
                     if isinstance(self._evolution_model, F81Model):
                         self.parameters.append(self._evolution_model.stat_params)
                     else:
@@ -501,15 +533,30 @@ class SamplerMCMC:
                         )
                     self.no_of_consecutive_parameters_appearances.append(1)
 
-        return [
-            self.trees,
-            self.likelihoods,
-            self.no_of_consecutive_tree_appearances,
-            self.changed_backbone_nodes,
-            self.changed_branching_node,
-            self.parameters,
-            self.no_of_consecutive_parameters_appearances,
-        ]
+        if plot:
+            likelihoods_plot = self._plot_likelihoods(self.all_likelihoods[burn_in:])
+            likelihoods_plot.show()
+            likelihoods_plot.close()
+
+        if index_tree > 0:
+            results_tree = [
+                self.trees[index_for_burn_in:],
+                self.likelihoods[index_for_burn_in:],
+                self.no_of_consecutive_tree_appearances[index_for_burn_in:],
+                self.changed_backbone_nodes[index_for_burn_in:],
+                self.changed_branching_node[index_for_burn_in:],
+            ]
+        else:
+            results_tree = []
+        if index_param > 0:
+            results_param = [
+                self.parameters,
+                self.no_of_consecutive_parameters_appearances,
+            ]
+        else:
+            results_param = []
+
+        return results_tree + results_param
 
     @staticmethod
     def _validate_steps_params(steps_params):
@@ -528,3 +575,28 @@ class SamplerMCMC:
                 "evolution_model must be an object of class EvolutionModel!"
             )
         return evolution_model
+
+    @staticmethod
+    def _randomized_tree_from_msa(msa):
+        from Bio.Phylo.BaseTree import Tree
+
+        """Create randomised tree with taxa from MultipleSequenceAlignment (PRIVATE)."""
+        taxa = []
+        for seq in msa:
+            taxa.append(seq.name)
+        return Tree().randomized(taxa)
+
+    @staticmethod
+    def _plot_likelihoods(likelihoods_list):
+        """Create plot for likelihoods (PRIVATE)."""
+        maximum = max(likelihoods_list)
+        figure = plt.plot(
+            likelihoods_list,
+            color="blue",
+            label="LocalWithoutClockStepper_likelihoods",
+        )
+        figure.axhline(
+            maximum, linestyle="dashed", color="red", label="maximum_likelihood_found"
+        )
+        figure.legend()
+        return figure
