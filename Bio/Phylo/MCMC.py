@@ -83,12 +83,11 @@ class LocalWithoutClockStepper(Stepper):
         """Return changed tree and Hastings ratio.
 
         1. Randomly select 3 consecutive branches with total length m.
-        2. Resize m: m' = m * exp(size_param * (U-0.5)) where U ~ uniform[0,1].
+        2. Resize m: m' = m * exp(size_param * (U-0.5)) where U ~ uniform[0, 1].
         3. Randomly select one of the two outgoing centre branches.
         4. Regraft the selected branch to uniformly chosen position from 0 to m'.
         """
         # get list of 4 consecutive clades
-
         random_path = self._get_random_path(tree)
         while random_path == []:
             random_path = self._get_random_path(tree)
@@ -276,45 +275,42 @@ class ChangeEvolutionParamStepper(Stepper):
     TO_DO
     """
 
-    def __init__(self, evolution_model, size_param=None):
+    def __init__(self, size_param=None):
         """Initialize the class."""
         super().__init__(size_param)
-        if isinstance(evolution_model, EvolutionModel):
-            self.evolution_model = evolution_model
-        else:
-            raise TypeError("Must provide an EvolutionModel object.")
 
-    def perform_step(self):
+    def perform_step(self, evolution_model):
         """Return new ModelEvolution object with changed parameters.
 
         1. Check EvolutionModel subclass, for GTR randomly choose stat_params or exch_params.
         2. Change randomly chosen parameters.
         """
+        if not isinstance(evolution_model, EvolutionModel):
+            raise TypeError("Must provide an EvolutionModel object.")
+
         # we change stat_params for F81 Evolution model - only params for this subclass
-        if isinstance(self.evolution_model, F81Model):
+        elif isinstance(evolution_model, F81Model):
             new_stat_params = self._change_stat_params(
-                self.evolution_model.stat_params, sd=self.size_param
+                evolution_model.stat_params, sd=self.size_param
             )
             new_evolution_model = F81Model(stat_params=new_stat_params)
 
         # for GTR Evolution model we randomly change either stat_params or exch_params
         elif random.random() < 0.5:
             new_stat_params = self._change_stat_params(
-                self.evolution_model.stat_params, sd=self.size_param
+                evolution_model.stat_params, sd=self.size_param
             )
             new_evolution_model = GTRModel(
-                stat_params=new_stat_params,
-                exch_params=self.evolution_model.exch_params,
+                stat_params=new_stat_params, exch_params=evolution_model.exch_params,
             )
         else:
             new_exch_params = self._change_exch_params(
-                self.evolution_model.exch_params,
-                alphabet=self.evolution_model.alphabet,
+                evolution_model.exch_params,
+                alphabet=evolution_model.alphabet,
                 sd=self.size_param,
             )
             new_evolution_model = GTRModel(
-                stat_params=self.evolution_model.stat_params,
-                exch_params=new_exch_params,
+                stat_params=evolution_model.stat_params, exch_params=new_exch_params,
             )
 
         return new_evolution_model
@@ -338,14 +334,18 @@ class ChangeEvolutionParamStepper(Stepper):
             pass
         else:
             new_stat_params[symbol_to_change] += random_update
-            second_symbol = symbols.pop()
-            sum_without_second = (
-                sum(new_stat_params.values()) - new_stat_params[second_symbol]
-            )
-            if sum_without_second > 1:
+            sum_helper = new_stat_params[symbol_to_change]
+            # second_symbol = symbols.pop()
+            # print("sec_sym: " + second_symbol)
+            for s in symbols[:-1]:
+                new_stat_params[s] = stat_params[s] / (1 + random_update)
+                sum_helper += new_stat_params[s]
+                # print("sum_helper " + str(sum_helper))
+            # new_stat_params[second_symbol] = 1 - sum_helper
+            new_stat_params[symbols[-1]] = 1 - sum_helper
+            if not math.isclose(1, sum(new_stat_params.values())):
                 pass
             else:
-                new_stat_params[second_symbol] = 1 - sum_without_second
                 return new_stat_params
 
     @staticmethod
@@ -383,17 +383,12 @@ class SamplerMCMC:
     TO_DO
     """
 
-    def __init__(self, steps_param=None, evolution_model=None):
+    def __init__(self, steps_param=None):
         """Init method for Sampler."""
         if not steps_param:
             self._steps_param = {LocalWithoutClockStepper(1.0): 1.0}
         else:
             self._steps_param = self._validate_steps_params(steps_param)
-
-        if not evolution_model:
-            self._evolution_model = GTRModel()
-        else:
-            self._evolution_model = self._validate_evolution(evolution_model)
         self.trees = []
         self.no_of_consecutive_tree_appearances = []
         self.likelihoods = []
@@ -406,6 +401,7 @@ class SamplerMCMC:
     def get_results(
         self,
         msa,
+        evolution_model=None,
         no_iterations=1000,
         burn_in=0,
         plot=False,
@@ -441,6 +437,11 @@ class SamplerMCMC:
         if not no_iterations > burn_in:
             raise ValueError("no_interations must be greater than burn_in")
 
+        if not evolution_model:
+            evolution_model = GTRModel()
+        else:
+            self._validate_evolution(evolution_model)
+
         # build starting tree depending on start_from_random_tree argument value
         # start_from_random_tree=True
         if start_from_random_tree:
@@ -453,7 +454,7 @@ class SamplerMCMC:
             current_tree = constructor.upgma(distance_matrix)
 
         # calculate initial likelihood
-        scorer = LikelihoodScorer(self._evolution_model)
+        scorer = LikelihoodScorer(evolution_model)
         likelihood_current = scorer.get_score(current_tree, msa)
 
         index_tree = 0
@@ -466,11 +467,11 @@ class SamplerMCMC:
         self.all_likelihoods.append(likelihood_current)
         self.changed_backbone_nodes.append([])
         self.changed_branching_node.append("")
-        if isinstance(self._evolution_model, F81Model):
-            self.parameters.append(self._evolution_model.stat_params)
+        if isinstance(evolution_model, F81Model):
+            self.parameters.append(evolution_model.stat_params)
         else:
             self.parameters.append(
-                [self._evolution_model.stat_params, self._evolution_model.exch_params]
+                [evolution_model.stat_params, evolution_model.exch_params]
             )
         self.no_of_consecutive_parameters_appearances.append(1)
 
@@ -510,7 +511,9 @@ class SamplerMCMC:
                     index_for_burn_in += 1
 
             else:
-                proposal_evolution_model = stepper.perform_step()
+                proposal_evolution_model = stepper.perform_step(
+                    evolution_model=evolution_model
+                )
                 scorer = LikelihoodScorer(evolution_model=proposal_evolution_model)
                 proposal_likelihood = scorer.get_score(current_tree, msa)
                 acceptance_ratio = proposal_likelihood - likelihood_current
@@ -521,15 +524,12 @@ class SamplerMCMC:
                     index_param += 1
                     current_tree = proposal_tree
                     likelihood_current = proposal_likelihood
-                    self._evolution_model = proposal_evolution_model
-                    if isinstance(self._evolution_model, F81Model):
-                        self.parameters.append(self._evolution_model.stat_params)
+                    evolution_model = proposal_evolution_model
+                    if isinstance(evolution_model, F81Model):
+                        self.parameters.append(evolution_model.stat_params)
                     else:
                         self.parameters.append(
-                            [
-                                self._evolution_model.stat_params,
-                                self._evolution_model.exch_params,
-                            ]
+                            [evolution_model.stat_params, evolution_model.exch_params]
                         )
                     self.no_of_consecutive_parameters_appearances.append(1)
 
