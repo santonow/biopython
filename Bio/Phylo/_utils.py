@@ -328,6 +328,7 @@ def draw(
     label_colors=None,
     save=False,
     save_name=0,
+    photos=False,
     *args,
     **kwargs
 ):
@@ -496,8 +497,6 @@ def draw(
             calc_row(tree.root)
         return heights
 
-    x_posns = get_x_positions(tree)
-    y_posns = get_y_positions(tree)
     # The function draw_clade closes over the axes object
     if axes is None:
         fig = plt.figure()
@@ -515,6 +514,7 @@ def draw(
         y_top=0,
         color="black",
         lw=".1",
+        lo="1.0"
     ):
         """Create a line with or without a line collection object.
 
@@ -522,23 +522,23 @@ def draw(
         customized by altering this function.
         """
         if not use_linecollection and orientation == "horizontal":
-            axes.hlines(y_here, x_start, x_here, color=color, lw=lw)
+            axes.hlines(y_here, x_start, x_here, color=color, lw=lw, alpha=lo)
         elif use_linecollection and orientation == "horizontal":
             horizontal_linecollections.append(
                 mpcollections.LineCollection(
-                    [[(x_start, y_here), (x_here, y_here)]], color=color, lw=lw
+                    [[(x_start, y_here), (x_here, y_here)]], color=color, lw=lw, alpha=lo
                 )
             )
         elif not use_linecollection and orientation == "vertical":
-            axes.vlines(x_here, y_bot, y_top, color=color)
+            axes.vlines(x_here, y_bot, y_top, color=color, alpha=lo)
         elif use_linecollection and orientation == "vertical":
             vertical_linecollections.append(
                 mpcollections.LineCollection(
-                    [[(x_here, y_bot), (x_here, y_top)]], color=color, lw=lw
+                    [[(x_here, y_bot), (x_here, y_top)]], color=color, lw=lw, alpha=lo
                 )
             )
 
-    def draw_clade(clade, x_start, color, lw):
+    def draw_clade(clade, x_start, color, lw, lo=1.0):
         """Recursively draw a tree, down from the given clade."""
         x_here = x_posns[clade]
         y_here = y_posns[clade]
@@ -556,6 +556,7 @@ def draw(
             x_here=x_here,
             color=color,
             lw=lw,
+            lo=lo
         )
         # Add node/taxon labels
         label = label_func(clade)
@@ -590,12 +591,22 @@ def draw(
                 y_top=y_top,
                 color=color,
                 lw=lw,
+                lo=lo
             )
             # Draw descendents
             for child in clade:
-                draw_clade(child, x_here, color, lw)
-
-    draw_clade(tree.root, 0, "k", plt.rcParams["lines.linewidth"])
+                draw_clade(child, x_here, color, lw, lo)
+                
+    if isinstance(tree, list):
+        for i in range(len(tree)):
+            x_posns = get_x_positions(tree[i][0])
+            y_posns = get_y_positions(tree[i][0])
+            draw_clade(tree[i][0].root, 0, "k", plt.rcParams["lines.linewidth"], lo=float(tree[i][1]/100))
+        
+    else:
+        x_posns = get_x_positions(tree)
+        y_posns = get_y_positions(tree)
+        draw_clade(tree.root, 0, "k", plt.rcParams["lines.linewidth"])
 
     # If line collections were used to create clade lines, here they are added
     # to the pyplot plot.
@@ -615,6 +626,8 @@ def draw(
             axes.set_title(name)
     axes.set_xlabel("branch length")
     axes.set_ylabel("taxa")
+    axes.spines['top'].set_visible(False)
+    axes.spines['right'].set_visible(False) 
     # Add margins around the tree to prevent overlapping the axes
     xmax = max(x_posns.values())
     axes.set_xlim(-0.05 * xmax, 1.25 * xmax)
@@ -644,6 +657,8 @@ def draw(
         plt.show()
     if save:
         plt.savefig(str(save_name) + ".png")
+    if not do_show and save:
+        return axes
         
 def visualize_changes(trees_list):
     import os
@@ -665,3 +680,19 @@ def visualize_changes(trees_list):
                 writer.append_data(image)
     generate_gif()
     shutil.rmtree(current+"/plot_temp1")
+    
+def draw_probability(trees_list):
+    def change_width(clade):
+        clade.width = clade.confidence
+        if clade.width != None:
+            clade.width = float(clade.width)/40
+        #clade.width = float(clade.width)
+        if clade.clades:
+            for child in clade:
+                change_width(child)
+    fig, ax = plt.subplots()
+    for pair in trees_list:
+        tree = pair[0]
+        change_width(tree.root)
+        axes = draw(tree, do_show=False, cons_prob=pair[1])
+    plt.savefig("testowy" + ".png")
