@@ -11,10 +11,12 @@ import itertools
 import copy
 import numbers
 import math
+import numpy as np
 from Bio.Phylo import BaseTree
 from Bio.Align import MultipleSeqAlignment
 from Bio.SubsMat import MatrixInfo
 from Bio.Phylo.EvolutionModel import EvolutionModel
+from Bio.Phylo.BaseTree import _postorder_traverse
 
 
 class _Matrix:
@@ -1218,7 +1220,8 @@ class LikelihoodScorer(Scorer):
     is equal to the sum of log(P(alignment_i | tree)), where alignment_i is the i-th column of the alignment.
     The Felsenstein's algorithm offers the speedup by computing the probabilities starting from the leafs of the tree,
     so checking all possible assignments of symbols at each nonterminal node is not needed
-    (it would cause exponential complexity).
+    (it would cause exponential complexity). The complexity is O(n*m*k**2), where n is the number of taxa,
+    m is the length of the alignment, and k is the number of symbols in the alphabet.
 
     :Parameters:
         evolution_model: EvolutionModel
@@ -1274,15 +1277,15 @@ class LikelihoodScorer(Scorer):
         self._validate_tree(_tree)
         # sort tree terminals and alignment
         # code from ParsimonyScorer.get_score starts
-        terms = _tree.get_terminals()
-        terms.sort(key=lambda term: term.name)
+        terms = [term.name for term in _tree.get_terminals()]
+        terms.sort()
         alignment.sort()
-        if not all(t.name == a.id for t, a in zip(terms, alignment)):
+        if not all(t == a.id for t, a in zip(terms, alignment)):
             raise ValueError(
                 "Taxon names of the input tree should be the same with the alignment."
             )
         # code from ParsimonyScorer.get_score ends
-        likelihood = 0
+        all_names = list(terms)
         nonterminal_names = set()
         for i, clade in enumerate(_tree.get_nonterminals()):
             if not clade.name or clade.name in nonterminal_names:
@@ -1291,71 +1294,60 @@ class LikelihoodScorer(Scorer):
                 clade.name = f"Nonterminal{i}"
             else:
                 nonterminal_names.add(clade.name)
+            all_names.append(clade.name)
+        all_names_indices = {name: i for i, name in enumerate(all_names)}
+        symbol_indices = {
+            symbol: i for i, symbol in enumerate(self.evolution_model.alphabet)
+        }
+        dp_dict = np.zeros(
+            (len(all_names), len(self.evolution_model.alphabet)), dtype=np.float64
+        )
+        likelihood = 0
         for i in range(len(alignment[0])):
-            # dynamic programming dictionary
-            dp_dict = {}
-            clade_states = dict(zip((t.name for t in terms), alignment[:, i]))
-            # calculate log(sum(P(alignment_i | symbol) * P(symbol) for each symbol)) and add it to likelihood.
+            for clade in _postorder_traverse(_tree.root, lambda x: x.clades):
+                current_clade_position = all_names_indices[clade.name]
+                for root_symbol in self.evolution_model.alphabet:
+                    if clade.is_terminal():
+                        if (
+                            alignment[current_clade_position, i] == root_symbol
+                            or alignment[current_clade_position, i]
+                            == self._gap_character
+                        ):
+                            dp_dict[
+                                current_clade_position, symbol_indices[root_symbol]
+                            ] = 1
+                        else:
+                            dp_dict[
+                                current_clade_position, symbol_indices[root_symbol]
+                            ] = 0
+                    else:
+                        left, right = clade.clades
+
+                        dp_dict[
+                            current_clade_position, symbol_indices[root_symbol]
+                        ] = sum(
+                            self.evolution_model.get_probability(
+                                root_symbol, sym, left.branch_length
+                            )
+                            * dp_dict[all_names_indices[left.name], symbol_indices[sym]]
+                            for sym in self.evolution_model.alphabet
+                        ) * sum(
+                            self.evolution_model.get_probability(
+                                root_symbol, sym, right.branch_length
+                            )
+                            * dp_dict[
+                                all_names_indices[right.name], symbol_indices[sym]
+                            ]
+                            for sym in self.evolution_model.alphabet
+                        )
             likelihood += math.log(
                 sum(
-                    self._pos_likelihood(
-                        clade=_tree.root,
-                        root_symbol=sym,
-                        clade_states=clade_states,
-                        dp_dict=dp_dict,
-                    )
+                    dp_dict[all_names_indices[_tree.root.name], symbol_indices[sym]]
                     * self.evolution_model.stat_params[sym]
                     for sym in self.evolution_model.alphabet
                 )
             )
         return likelihood
-
-    def _pos_likelihood(self, clade, root_symbol, clade_states, dp_dict):
-        """Return likelihood for a clade assuming symbol root_symbol in root (PRIVATE).
-
-        This function is used for recursion in Felsenstein's pruning algorithm.
-        The recursion terminates at terminal nodes.
-
-        :Paramters:
-            clade: Clade
-                A clade for which the likelihood is calculated.
-            root_nuc: str
-                A nucleotide for which the probability is calculated.
-            clade_states: Dict[str, str]
-                A dictionary mapping terminals' names to nucleotides in a column for which likelihood is calculated.
-            dp_dict: Dict[Tuple[str, str], float]
-                A dynamic programming dictionary. dp_dict[(node.name, symbol)] = P(node | symbol).
-        """
-        if (clade, root_symbol) not in dp_dict:
-            # at terminals assign 1 if the nucleotides are the same or if there is a gap in the alignment
-            if clade.is_terminal():
-                if (
-                    clade_states[clade.name] == root_symbol
-                    or clade_states[clade.name] == self._gap_character
-                ):
-                    dp_dict[(clade.name, root_symbol)] = 1
-                else:
-                    dp_dict[(clade.name, root_symbol)] = 0
-            else:
-                # recursively compute the probabilities
-                # P(node | node_symbol) = sum(P(node_symbol, symbol, left_child_branch_length) * P(left_child | symbol))
-                #                     * sum(P(node_symbol, symbol, right_child_branch_length) * P(right_child | symbol))
-                # where symbols are taken from the alphabet
-                left, right = clade.clades
-                dp_dict[(clade.name, root_symbol)] = sum(
-                    self.evolution_model.get_probability(
-                        root_symbol, sym, left.branch_length
-                    )
-                    * self._pos_likelihood(left, sym, clade_states, dp_dict)
-                    for sym in self.evolution_model.alphabet
-                ) * sum(
-                    self.evolution_model.get_probability(
-                        root_symbol, sym, right.branch_length
-                    )
-                    * self._pos_likelihood(right, sym, clade_states, dp_dict)
-                    for sym in self.evolution_model.alphabet
-                )
-        return dp_dict[(clade.name, root_symbol)]
 
     @staticmethod
     def _validate_tree(tree):
