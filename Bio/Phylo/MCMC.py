@@ -405,7 +405,8 @@ class SamplerMCMC:
         no_iterations=1000,
         burn_in=0,
         plot=False,
-        start_from_random_tree=False,
+        start_tree=None,
+        start_from_random_tree=False
     ):
         """Perform MCMC sampling procedure.
 
@@ -414,6 +415,7 @@ class SamplerMCMC:
         - no_iterations - number of MCMC sampling steps,
         - burn_in - all outputs from LocalWithoutClockStepper steps will NOT include first burn_in elements,
         - plot - if True at the end of the procedure a plot of all likelihoods strating from burn in will be plotted,
+        - start_tree - if valid BaseTree object passed - it is a starting tree for sampling,
         - start_from_random_tree - if True - the starting tree will be random, if False - constructed using UPGMA.
         1. Construct initial tree from MultipleSequenceAlignment.
         2. For no_iterations perform single step randomly chosen according to steps distribution.
@@ -432,21 +434,26 @@ class SamplerMCMC:
         """
         # validate input
         if not isinstance(msa, MultipleSeqAlignment):
-            raise TypeError("Arg msa must be a MultipleSeqAlignment object.")
+            raise TypeError("Arg msa must be a MultipleSeqAlignment object!")
 
         if not no_iterations > burn_in:
-            raise ValueError("no_interations must be greater than burn_in")
+            raise ValueError("no_interations must be greater than burn_in!")
 
         if not evolution_model:
             evolution_model = GTRModel()
         else:
             self._validate_evolution(evolution_model)
 
-        # build starting tree depending on start_from_random_tree argument value
-        # start_from_random_tree=True
-        if start_from_random_tree:
+        # start from passed BaseTree
+        if start_tree:
+            if isinstance(start_tree, Phylo.BaseTree):
+                current_tree = start_tree
+            else:
+                raise TypeError("start_tree must be a valid BaseTree object!")
+        # start from randomised tree if start_from_random_tree=True
+        elif start_from_random_tree:
             current_tree = self._randomized_tree_from_msa(msa)
-        # start_from_random_tree=False, use UPGMA
+        # start from tree build using UPGMA
         else:
             calculator = DistanceCalculator("identity")
             distance_matrix = calculator.get_distance(msa)
