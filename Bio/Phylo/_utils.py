@@ -614,20 +614,28 @@ def draw(
                 draw_clade(child, x_here, color, lw, lo)
                 
     def random_color():
-        import random
+        try:
+            import random
+        except ImportError:
+            raise MissingPythonDependencyError(
+                "Install random if you want to draw multiple trees."
+            ) from None
         levels = range(32,256,32)
         return tuple(random.choice(levels) for _ in range(3))
 
     # Options for drawing multiple trees in one graph
     if isinstance(tree, list):
         for i in range(len(tree)):
-            if width:
-                calc_width(tree[i][0])
-            x_posns = get_x_positions(tree[i][0])
-            y_posns = get_y_positions(tree[i][0])
-            tree_color = random_color()
-            tree[i][0].root._set_color(tree_color)
-            draw_clade(tree[i][0].root, 0, "k", plt.rcParams["lines.linewidth"], lo=float(tree[i][1]/100))
+            try:
+                if width:
+                    calc_width(tree[i][0])
+                x_posns = get_x_positions(tree[i][0])
+                y_posns = get_y_positions(tree[i][0])
+                tree_color = random_color()
+                tree[i][0].root._set_color(tree_color)
+                draw_clade(tree[i][0].root, 0, "k", plt.rcParams["lines.linewidth"], lo=float(tree[i][1]/100))
+            except IndexError:
+                print("Provide correctly formated list of trees and probabilities")
         
     else:
         if width:
