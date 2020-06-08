@@ -329,6 +329,7 @@ def draw(
     save=False,
     save_name=0,
     photos=False,
+    width=False,
     *args,
     **kwargs
 ):
@@ -401,6 +402,21 @@ def draw(
     # Arrays that store lines for the plot of clades
     horizontal_linecollections = []
     vertical_linecollections = []
+    
+    # Options for adding branch width connected to confidence of the branch
+    def calc_width(tree):
+        def change_width(clade):
+            try:
+                clade.width = clade.confidence
+            except AttributeError:
+                clade.width = clade.confidences[0]
+                # phyloXML supports multiple confidences
+            if clade.width != None:
+                clade.width = float(clade.width)/40
+            if clade.clades:
+                for child in clade:
+                    change_width(child)
+        change_width(tree.root)
 
     # Options for displaying branch labels / confidence
     def conf2str(conf):
@@ -530,7 +546,7 @@ def draw(
                 )
             )
         elif not use_linecollection and orientation == "vertical":
-            axes.vlines(x_here, y_bot, y_top, color=color, alpha=lo)
+            axes.vlines(x_here, y_bot, y_top, color=color, lw=lw alpha=lo)
         elif use_linecollection and orientation == "vertical":
             vertical_linecollections.append(
                 mpcollections.LineCollection(
@@ -597,13 +613,25 @@ def draw(
             for child in clade:
                 draw_clade(child, x_here, color, lw, lo)
                 
+    def random_color():
+        import random
+        levels = range(32,256,32)
+        return tuple(random.choice(levels) for _ in range(3))
+
+    # Options for drawing multiple trees in one graph
     if isinstance(tree, list):
         for i in range(len(tree)):
+            if width:
+                calc_width(tree[i][0])
             x_posns = get_x_positions(tree[i][0])
             y_posns = get_y_positions(tree[i][0])
+            tree_color = random_color()
+            tree[i][0].root._set_color(tree_color)
             draw_clade(tree[i][0].root, 0, "k", plt.rcParams["lines.linewidth"], lo=float(tree[i][1]/100))
         
     else:
+        if width:
+            calc_width(tree)
         x_posns = get_x_positions(tree)
         y_posns = get_y_positions(tree)
         draw_clade(tree.root, 0, "k", plt.rcParams["lines.linewidth"])
@@ -680,19 +708,4 @@ def visualize_changes(trees_list):
                 writer.append_data(image)
     generate_gif()
     shutil.rmtree(current+"/plot_temp1")
-    
-def draw_probability(trees_list):
-    def change_width(clade):
-        clade.width = clade.confidence
-        if clade.width != None:
-            clade.width = float(clade.width)/40
-        #clade.width = float(clade.width)
-        if clade.clades:
-            for child in clade:
-                change_width(child)
-    fig, ax = plt.subplots()
-    for pair in trees_list:
-        tree = pair[0]
-        change_width(tree.root)
-        axes = draw(tree, do_show=False, cons_prob=pair[1])
-    plt.savefig("testowy" + ".png")
+  
