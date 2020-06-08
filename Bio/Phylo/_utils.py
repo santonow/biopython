@@ -388,6 +388,11 @@ def draw(
             A function or a dictionary specifying the color of the tip label.
             If the tip label can't be found in the dict or label_colors is
             None, the label will be shown in black.
+        photos : bool
+            Photos representing each leaf can be added to the graph.
+            Photos must have the same name as labels connected to the leaf,
+            and be in a .jpg format. If they're aren't a perfect square,
+            the longer side will be cut equally from both ends.
         save_name : string
             Whether to save the plot automatically as save_name.png.
         width : bool
@@ -562,6 +567,28 @@ def draw(
                     [[(x_here, y_bot), (x_here, y_top)]], color=color, lw=lw, alpha=lo
                 )
             )
+            
+    def add_photo(name):
+        try:
+            import PIL
+        except ImportError:
+            raise MissingPythonDependencyError(
+                "Install PIL if you want to add photos to graphs."
+            ) from None
+        try:
+            im = PIL.Image.open(name)
+        except FileNotFoundError:
+            print("File with a name of one of the leaves could not be found")
+        x_size, y_size = im.size
+        if x_size!=y_size:
+            if x_size < y_size:
+                box = (0, (y_size-x_size)/2, x_size, ((y_size-x_size)/2)+x_size)
+            else:
+                box = ((x_size-y_size)/2, 0, ((x_size-y_size)/2)+y_size, y_size)
+            region = im.crop(box)
+        maxsize = (50, 50)
+        region.thumbnail(maxsize, PIL.Image.ANTIALIAS)
+        return region
 
     def draw_clade(clade, x_start, color, lw, lo=1.0):
         """Recursively draw a tree, down from the given clade."""
@@ -603,6 +630,24 @@ def draw(
                 fontsize="small",
                 horizontalalignment="center",
             )
+            
+        # Options for adding photos to graph    
+        if photos and not clade.clades:
+            from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+            try:
+                import numpy as np
+            except ImportError:
+                raise MissingPythonDependencyError(
+                    "Install numpy if you want to add photos to graphs."
+                ) from None
+
+            im = add_photo(label+".jpg")
+            imagebox = OffsetImage(im)
+            offset = 50+len(str(label))*13
+            imagebox.image.axes = axes
+            ab = AnnotationBbox(imagebox, (x_here, y_here), boxcoords = 'offset pixels', xybox=(offset,0), pad=0.3)
+            axes.add_artist(ab)
+        
         if clade.clades:
             # Draw a vertical line connecting all children
             y_top = y_posns[clade.clades[0]]
