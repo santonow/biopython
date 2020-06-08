@@ -337,6 +337,9 @@ def draw(
 
     The graphic is a rooted tree, drawn with roughly the same algorithm as
     draw_ascii.
+    Instead of a single tree a list of tuples (tree, probability) can be given.
+    In that case all of the trees will be plotted on a single graph, with transparency
+    of the lines depending on probablity.
 
     Additional keyword arguments passed into this function are used as pyplot
     options. The input format should be in the form of:
@@ -385,6 +388,12 @@ def draw(
             A function or a dictionary specifying the color of the tip label.
             If the tip label can't be found in the dict or label_colors is
             None, the label will be shown in black.
+        save_name : string
+            Whether to save the plot automatically as save_name.png.
+        width : bool
+            Wether or not to scale width of branches depending on confidence.
+            If more than one confidence is provided for a branch,
+            only the first one will be considered.
 
     """
     try:
@@ -691,10 +700,12 @@ def draw(
 
     if do_show:
         plt.show()
-    if save:
-        plt.savefig(str(save_name) + ".png")
-    if not do_show and save:
-        return axes
+    if save_name:
+        try:
+            plt.savefig(save_name) + ".png")
+        except TypeError:
+            print("Provide save_name as a string")
+
         
 def visualize_changes(trees_list):
     import os
