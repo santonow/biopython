@@ -108,7 +108,7 @@ class _Matrix:
             # check if all elements are numbers
             if (
                 isinstance(matrix, list)
-                and all(isinstance(l, list) for l in matrix)
+                and all(isinstance(el, list) for el in matrix)
                 and all(
                     isinstance(n, numbers.Number)
                     for n in [item for sublist in matrix for item in sublist]
