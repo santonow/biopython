@@ -51,9 +51,19 @@ class EvolutionModel:
     @staticmethod
     def _validate_stat_params(stat_params):
         """Check whether the stat_params dict represents a valid probability distribution (PRIVATE)."""
+        if not isinstance(stat_params, Mapping):
+            raise ValueError("stat_params must a be a mapping (dictionary)!")
         if not math.isclose(1, sum(stat_params.values())):
             raise ValueError(
                 "stat_params must represent a valid probability distribution!"
+            )
+        if any(x < 0 for x in stat_params.values()):
+            raise ValueError(
+                "stat_params values have to be grater than zero!"
+            )
+        if any(x > 1 for x in stat_params.values()):
+            raise ValueError(
+                "stat_params values have to be less than one!"
             )
         return stat_params
 
@@ -165,6 +175,7 @@ class GTRModel(EvolutionModel):
         self._validate_keys(self.stat_params, self.exch_params)
         self._sym_to_ind = {sym: i for i, sym in enumerate(self.alphabet)}
         self._Q, self._evals, self._evecs, self._evecs_inv = self._compute_spectral()
+        self._exp_Q_t_matrices = {}
 
     def __str__(self):
         """Print model parameters."""
@@ -182,18 +193,21 @@ class GTRModel(EvolutionModel):
     def get_probability(self, site1, site2, t):
         """Return probability of evolving site1 to site2 in time t.
 
-        Basically more efficient (V @ exp(lambda * t) @ V^-1)[site1, site2],
-        where V is an eigenvectors matrix and lambda is a diagonal eigenvalues matrix.
+        If P(t) = exp(Qt) has been computed, return the proper value.
+        Otherwise, compute P(t) = V @ exp(lambda * t) @ V**(-1), where
+        lambda is the eigenvalues diagonal matrix and V is the Q eigenvectors matrix.
+        The eigenvalues and eigenvectors may be complex, but P(t) will not.
         """
-        return (
-            self._evecs[self._sym_to_ind[site1], :] * np.exp(self._evals * t)
-        ) @ self._evecs_inv[:, self._sym_to_ind[site2]]
+        if t not in self._exp_Q_t_matrices:
+            self._exp_Q_t_matrices[t] = self._evecs @ np.diag(np.exp(self._evals * t)) @ self._evecs_inv
+        return np.abs(self._exp_Q_t_matrices[t][self._sym_to_ind[site1], self._sym_to_ind[site2]])
 
     def _compute_spectral(self):
         """Compute and return eigenvalues and eigenvectors of the Q matrix (PRIVATE).
 
         Returns Q rate matrix, its eigenvalues, eigenvector matrix and its inverse.
         """
+        self._exp_Q_t_matrices = {}
         Q = np.empty((len(self.alphabet), len(self.alphabet)))
         for sym1, sym2 in permutations(self.alphabet, 2):
             Q[self._sym_to_ind[sym1], self._sym_to_ind[sym2]] = (

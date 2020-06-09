@@ -1220,8 +1220,8 @@ class LikelihoodScorer(Scorer):
     is equal to the sum of log(P(alignment_i | tree)), where alignment_i is the i-th column of the alignment.
     The Felsenstein's algorithm offers the speedup by computing the probabilities starting from the leafs of the tree,
     so checking all possible assignments of symbols at each nonterminal node is not needed
-    (it would cause exponential complexity). The complexity is O(n*m*k**2), where n is the number of taxa,
-    m is the length of the alignment, and k is the number of symbols in the alphabet.
+    (it would cause exponential complexity). The time complexity is O(n*m*k**2) and space complexity is O(n*m*k),
+    where n is the number of taxa, m is the length of the alignment, and k is the number of symbols in the alphabet.
 
     :Parameters:
         evolution_model: EvolutionModel
@@ -1258,10 +1258,27 @@ class LikelihoodScorer(Scorer):
     def __init__(self, evolution_model, gap_character="-"):
         """Initialize the class."""
         if isinstance(evolution_model, EvolutionModel):
-            self.evolution_model = evolution_model
+            self._evolution_model = evolution_model
         else:
             raise TypeError("Must provide an EvolutionModel object.")
         self._gap_character = gap_character
+        self._previous_dp_dict = None
+        self._previous_names_indices = None
+
+    @property
+    def evolution_model(self):
+        """Getter method for evolution_model."""
+        return self._evolution_model
+
+    @evolution_model.setter
+    def exch_params(self, value):
+        """Setter method for evolution_model.
+
+        Delete previous DP dictionary when evolution_model is changed.
+        """
+        self._previous_dp_dict = None
+        self._previous_names_indices = None
+        self._evolution_model = value
 
     def get_score(self, tree, alignment):
         """Calculate likelihood score using Felsenstein's pruning algorithm.
@@ -1285,6 +1302,7 @@ class LikelihoodScorer(Scorer):
                 "Taxon names of the input tree should be the same with the alignment."
             )
         # code from ParsimonyScorer.get_score ends
+        self._previous_dp_dict = None
         all_names = list(terms)
         nonterminal_names = set()
         for i, clade in enumerate(_tree.get_nonterminals()):
@@ -1300,11 +1318,27 @@ class LikelihoodScorer(Scorer):
             symbol: i for i, symbol in enumerate(self.evolution_model.alphabet)
         }
         dp_dict = np.zeros(
-            (len(all_names), len(self.evolution_model.alphabet)), dtype=np.float64
+            (len(alignment[0]), len(all_names), len(self.evolution_model.alphabet)),
+            dtype=np.float64,
         )
-        likelihood = 0
+        self._update_dp_dict(_tree, alignment, dp_dict, all_names_indices)
+        self._previous_dp_dict = dp_dict
+        self._previous_names_indices = all_names_indices
+        return self._compute_likelihood(
+            _tree,
+            alignment,
+            self._previous_dp_dict,
+            self._previous_names_indices,
+            symbol_indices,
+        )
+
+    def _update_dp_dict(self, tree, alignment, dp_dict, all_names_indices):
+        """Update dynamic programming dictionary (PRIVATE)."""
+        symbol_indices = {
+            symbol: i for i, symbol in enumerate(self.evolution_model.alphabet)
+        }
         for i in range(len(alignment[0])):
-            for clade in _postorder_traverse(_tree.root, lambda x: x.clades):
+            for clade in _postorder_traverse(tree.root, lambda x: x.clades):
                 current_clade_position = all_names_indices[clade.name]
                 for root_symbol in self.evolution_model.alphabet:
                     if clade.is_terminal():
@@ -1314,40 +1348,94 @@ class LikelihoodScorer(Scorer):
                             == self._gap_character
                         ):
                             dp_dict[
-                                current_clade_position, symbol_indices[root_symbol]
+                                i, current_clade_position, symbol_indices[root_symbol]
                             ] = 1
                         else:
                             dp_dict[
-                                current_clade_position, symbol_indices[root_symbol]
+                                i, current_clade_position, symbol_indices[root_symbol]
                             ] = 0
                     else:
-                        left, right = clade.clades
-
-                        dp_dict[
-                            current_clade_position, symbol_indices[root_symbol]
-                        ] = sum(
-                            self.evolution_model.get_probability(
-                                root_symbol, sym, left.branch_length
-                            )
-                            * dp_dict[all_names_indices[left.name], symbol_indices[sym]]
-                            for sym in self.evolution_model.alphabet
-                        ) * sum(
-                            self.evolution_model.get_probability(
-                                root_symbol, sym, right.branch_length
-                            )
-                            * dp_dict[
-                                all_names_indices[right.name], symbol_indices[sym]
-                            ]
-                            for sym in self.evolution_model.alphabet
+                        self._update_nonterminal_entry(
+                            i,
+                            root_symbol,
+                            clade,
+                            dp_dict,
+                            all_names_indices,
+                            symbol_indices,
                         )
+
+    def _compute_likelihood(
+        self, tree, alignment, dp_dict, all_names_indices, symbol_indices
+    ):
+        """Compute the likelihood of a whole tree given the dynamic programming dictionary (PRIVATE)."""
+        likelihood = 0
+        for i in range(len(alignment[0])):
             likelihood += math.log(
                 sum(
-                    dp_dict[all_names_indices[_tree.root.name], symbol_indices[sym]]
+                    dp_dict[i, all_names_indices[tree.root.name], symbol_indices[sym]]
                     * self.evolution_model.stat_params[sym]
                     for sym in self.evolution_model.alphabet
                 )
             )
         return likelihood
+
+    def _update_nonterminal_entry(
+        self, i, root_symbol, clade, dp_dict, all_names_indices, symbol_indices
+    ):
+        """Update an entry in DP dictionary corresponding to a nonterminal node (PRIVATE)."""
+        current_clade_position = all_names_indices[clade.name]
+        left, right = clade.clades
+        dp_dict[i, current_clade_position, symbol_indices[root_symbol]] = sum(
+            self.evolution_model.get_probability(root_symbol, sym, left.branch_length)
+            * dp_dict[i, all_names_indices[left.name], symbol_indices[sym]]
+            for sym in self.evolution_model.alphabet
+        ) * sum(
+            self.evolution_model.get_probability(root_symbol, sym, right.branch_length)
+            * dp_dict[i, all_names_indices[right.name], symbol_indices[sym]]
+            for sym in self.evolution_model.alphabet
+        )
+
+    def update_likelihood(self, tree, alignment, subtree_root_name):
+        """Update likelihood of a tree.
+
+        Updates the dynamic programming dictionary, first by computing the entry refering to subtree_root_name,
+        then computing all entries on a path from subtree_root_name to tree's root.
+        The complexity depends on the subtree root's position, but it's at least twice as fast compared to computing
+        the likelihood of a whole tree. Useful when making a move in MCMC sampling that changes only a part of a tree.
+
+        :Parameters:
+            tree : Tree
+            alignment : MultipleSeqAlignment
+            subtree_root_name : str
+        """
+        if self._previous_dp_dict is None or subtree_root_name == tree.root.name:
+            return self.get_score(tree, alignment)
+        else:
+            symbol_indices = {
+                symbol: i for i, symbol in enumerate(self.evolution_model.alphabet)
+            }
+            subtree, *path = tree.get_path(name=subtree_root_name)[::-1]
+            self._update_dp_dict(
+                subtree, alignment, self._previous_dp_dict, self._previous_names_indices
+            )
+            for i in range(len(alignment[0])):
+                for clade in path:
+                    for root_symbol in self.evolution_model.alphabet:
+                        self._update_nonterminal_entry(
+                            i,
+                            root_symbol,
+                            clade,
+                            self._previous_dp_dict,
+                            self._previous_names_indices,
+                            symbol_indices,
+                        )
+            return self._compute_likelihood(
+                tree,
+                alignment,
+                self._previous_dp_dict,
+                self._previous_names_indices,
+                symbol_indices,
+            )
 
     @staticmethod
     def _validate_tree(tree):
