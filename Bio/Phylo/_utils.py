@@ -754,24 +754,90 @@ def draw(
             print("Provide save_name as a string")
 
         
-def visualize_changes(trees_list):
-    import os
-    import shutil
-    current = os.getcwd()
-    print(current)
-    if not os.path.exists(current+"/plot_temp1"):
-        os.mkdir("plot_temp1")
-    os.chdir(current+"/plot_temp1")
-    for i in range(len(trees_list)):
-        draw(trees_list[i], do_show=False,save=True, save_name=i)
-    def generate_gif():
-        import imageio
-        imageio.help("GIF-FI")
+def visualize_changes(trees_list, gif_name, optimized=False, s=60):
+    
+    """ Visualize multiple trees on one gifs.
+    Trees are painted using the standard draw() method.
+    Usage requires having shutil and imageio libraries installed.
+    Gif will be saved in the current working directory.
+    Input must be either a list of trees, or an output of MCMC sampler.
+    
+    :Parameters:
+        gif_name : str
+            Name under which the gif will be saved
+        optimized : bool
+            Wether or not optimize the gif to lower it's size.
+            Requires having pygifsicle library installed.
+        s : int
+            How long, in seconds, should a full loop of the gif take.
+            Default value is 60 (a full minute).
+    """
+    
+    # Imports
+    try:
+        import os
+    except ImportError:
+        raise MissingPythonDependencyError(
+            "Install os if you want to visualize changes."
+        ) from None
+    try:
+        import shutil
+    except ImportError:
+        raise MissingPythonDependencyError(
+            "Install shutil if you want to visualize changes."
+        ) from None
+    
+    # Options for genetaring gifs
+    def generate_gif(frames):
+        try:
+            import imageio
+        except ImportError:
+            raise MissingPythonDependencyError(
+                "Install imageio if you want to visualize changes."
+            ) from None
+        fps=frames/s
         images = []
-        with imageio.get_writer(current+'/changes.gif', mode='I', duration = 1) as writer:
+        with imageio.get_writer(current+'/'+gif_name+".gif", mode='I', fps=fps) as writer:
             for filename in os.listdir(os.getcwd()):
                 image = imageio.imread(filename)
                 writer.append_data(image)
-    generate_gif()
-    shutil.rmtree(current+"/plot_temp1")
-  
+
+    current = os.getcwd()
+
+    if not os.path.exists(current+"/plot_temp"):
+        os.mkdir("plot_temp")
+    os.chdir(current+"/plot_temp")
+
+    # Parsing MCMC sampler output
+    if isinstance(trees_list[0], list):
+        counter=0
+        for i in range(len(trees_list[0])):
+            try:
+                changed_clade=trees_list[4][i]
+                changed_clade._set_color("red")
+            except:
+                pass
+            e=1
+            while e<=trees_list[1][i]:
+                draw(trees_list[0][i], do_show=False, save_name=str(counter))
+                counter+=1
+                e+=1
+                
+    else:
+        for i in range(len(trees_list)):
+            draw(trees_list[i], do_show=False, save_name=str(i))
+    
+    generate_gif(len(trees_list))
+    os.chdir(current)
+    # Removing temporary graphs
+    shutil.rmtree(current+"/plot_temp")
+
+    # Options for optimizing
+    if optimized:
+        try:
+            from pygifsicle import optimize
+        except ImportError:
+            raise MissingPythonDependencyError(
+                "Install pygifsicle if you want to optimize your gif."
+            ) from None
+        optimize(gif_name+".gif") 
