@@ -326,8 +326,7 @@ def draw(
     axes=None,
     branch_labels=None,
     label_colors=None,
-    save=False,
-    save_name=0,
+    save_name=None,
     photos=False,
     width=False,
     *args,
@@ -419,6 +418,7 @@ def draw(
     
     # Options for adding branch width connected to confidence of the branch
     def calc_width(tree):
+        """Change confidence into width of the branch.""" 
         def change_width(clade):
             try:
                 clade.width = clade.confidence
@@ -430,6 +430,7 @@ def draw(
             if clade.clades:
                 for child in clade:
                     change_width(child)
+                    
         change_width(tree.root)
 
     # Options for displaying branch labels / confidence
@@ -569,6 +570,7 @@ def draw(
             )
             
     def add_photo(name):
+        """Read and prepare photo for inserting into the graph."""
         try:
             import PIL
         except ImportError:
