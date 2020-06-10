@@ -580,7 +580,8 @@ def draw(
         try:
             im = PIL.Image.open(name)
         except FileNotFoundError:
-            print("File with a name of one of the leaves could not be found")
+            return
+        
         x_size, y_size = im.size
         if x_size!=y_size:
             if x_size < y_size:
@@ -588,6 +589,8 @@ def draw(
             else:
                 box = ((x_size-y_size)/2, 0, ((x_size-y_size)/2)+y_size, y_size)
             region = im.crop(box)
+        else:
+            region = im
         maxsize = (50, 50)
         region.thumbnail(maxsize, PIL.Image.ANTIALIAS)
         return region
@@ -642,13 +645,15 @@ def draw(
                 raise MissingPythonDependencyError(
                     "Install numpy if you want to add photos to graphs."
                 ) from None
-
-            im = add_photo(label+".jpg")
-            imagebox = OffsetImage(im)
-            offset = 50+len(str(label))*13
-            imagebox.image.axes = axes
-            ab = AnnotationBbox(imagebox, (x_here, y_here), boxcoords = 'offset pixels', xybox=(offset,0), pad=0.3)
-            axes.add_artist(ab)
+            try:
+                im = add_photo(label+".jpg")
+                imagebox = OffsetImage(im)
+                offset = 50+len(str(label))*13
+                imagebox.image.axes = axes
+                ab = AnnotationBbox(imagebox, (x_here, y_here), boxcoords = 'offset pixels', xybox=(offset,0), pad=0.3)
+                axes.add_artist(ab)
+            except:
+                pass
         
         if clade.clades:
             # Draw a vertical line connecting all children
@@ -752,6 +757,7 @@ def draw(
             plt.savefig(save_name) + ".png")
         except TypeError:
             print("Provide save_name as a string")
+    plt.close()
 
         
 def visualize_changes(trees_list, gif_name, optimized=False, s=60):
