@@ -33,10 +33,59 @@ except ImportError:
         "Install matplotlib if you want to use Bio.Phylo._utils."
     ) from None
 
+try:
+    import PIL
+except ImportError:
+    raise MissingExternalDependencyError(
+        "Install PIL if you want to use Bio.Phylo._utils."
+    ) from None
 
+try:
+    import numpy
+except ImportError:
+    raise MissingExternalDependencyError(
+        "Install numpy if you want to use Bio.Phylo._utils."
+    ) from None
+    
+try:
+    import random
+except ImportError:
+    raise MissingExternalDependencyError(
+        "Install random if you want to use Bio.Phylo._utils."
+    ) from None
+    
+try:
+    import os
+except ImportError:
+    raise MissingExternalDependencyError(
+        "Install os if you want to use Bio.Phylo._utils."
+    ) from None
+    
+try:
+    import shutil
+except ImportError:
+    raise MissingExternalDependencyError(
+        "Install shutil if you want to use Bio.Phylo._utils."
+    ) from None
+
+try:
+    import imageio
+except ImportError:
+    raise MissingExternalDependencyError(
+        "Install imageio if you want to use Bio.Phylo._utils."
+    ) from None
+    
+try:
+    from pygifsicle import optimize
+except ImportError:
+    raise MissingExternalDependencyError(
+        "Install pygifsicle if you want to use Bio.Phylo._utils."
+    ) from None
+    
 # Example PhyloXML file
 EX_DOLLO = "PhyloXML/o_tol_332_d_dollo.xml"
 EX_APAF = "PhyloXML/apaf.xml"
+EX_PHOTO = "PhyloXML/test_photos.xml"
 
 
 class UtilTests(unittest.TestCase):
@@ -98,6 +147,46 @@ class UtilTests(unittest.TestCase):
         Phylo.draw_ascii(tree, file=handle)
         Phylo.draw_ascii(tree, file=handle, column_width=120)
         handle.close()
+    
+    def test_draw_with_photos(self):
+        pyplot.ioff()  # Turn off interactive display
+        photo = Phylo.read(EX_PHOTO, "phyloxml")
+        current = os.getcwd()
+        os.chdir("PhyloXML/photos)
+        
+        try:
+            os.chdir("PhyloXML/photos)
+            Phylo.draw(photo, do_show=False, photos=True)
+        finally:       
+            os.chdir(current)
+    
+    def test_width(self):
+        pyplot.ioff()  # Turn off interactive display
+        photo = Phylo.read(EX_PHOTO, "phyloxml")
+        
+        Phylo.draw(photo, do_show=False, width=True)
+        
+    def test_multiple(self):
+        pyplot.ioff()  # Turn off interactive display
+        photo = Phylo.read(EX_PHOTO, "phyloxml")
+        apaf = Phylo.read(EX_APAF, "phyloxml")
+        test_list=[(photo, 60), (apaf, 40)]
+        
+        Phylo.draw(test_list, do_show=False)
+        
+    def test_visualize_changes(self):
+        pyplot.ioff()  # Turn off interactive display
+        photo = Phylo.read(EX_PHOTO, "phyloxml")
+        apaf = Phylo.read(EX_APAF, "phyloxml")
+        test_list = [photo, apaf]
+        
+        try:
+            Phylo.visualize_changes(test_list, "test_gif1")
+            Phylo.visualize_changes(test_list, "test_gif2", optimized=True)
+        finally:
+            os.remove("test_gif1.gif")
+            os.remove("test_gif2.gif")
+            
 
 
 if __name__ == "__main__":
