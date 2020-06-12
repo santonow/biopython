@@ -103,6 +103,12 @@ class UtilTests(unittest.TestCase):
         Phylo.draw(
             apaf, do_show=False, branch_labels=lambda c: c.branch_length  # noqa: E731
         )
+        # Check that graph saves correctly
+        wykres.draw(apaf, do_show=False, save_name="test")
+        assert os.path.exists("test.png")
+        if not os.stat("test.png").st_size > 1:
+            raise FileNotFoundError("Size of the saved graph is too small.") from None
+        os.remove("test.png")
 
     def test_draw_with_label_colors_dict(self):
         """Layout tree with label colors as dict.
@@ -149,24 +155,23 @@ class UtilTests(unittest.TestCase):
         handle.close()
     
     def test_draw_with_photos(self):
+        """Layout tree with added photos"""
         pyplot.ioff()  # Turn off interactive display
         photo = Phylo.read(EX_PHOTO, "phyloxml")
         current = os.getcwd()
-        os.chdir("PhyloXML/photos")
-        
-        try:
-            os.chdir("PhyloXML/photos")
-            Phylo.draw(photo, do_show=False, photos=True)
-        finally:       
-            os.chdir(current)
+        os.chdir(current+"/PhyloXML/photos")
+        Phylo.draw(photo, do_show=False, photos=True)
+        os.chdir(current)
     
     def test_width(self):
+        """Layout tree with added branch widths"""
         pyplot.ioff()  # Turn off interactive display
         photo = Phylo.read(EX_PHOTO, "phyloxml")
         
         Phylo.draw(photo, do_show=False, width=True)
         
     def test_multiple(self):
+        """Multiple graphs on one plot"""
         pyplot.ioff()  # Turn off interactive display
         photo = Phylo.read(EX_PHOTO, "phyloxml")
         apaf = Phylo.read(EX_APAF, "phyloxml")
@@ -175,17 +180,25 @@ class UtilTests(unittest.TestCase):
         Phylo.draw(test_list, do_show=False)
         
     def test_visualize_changes(self):
+        """Generate gif from multiple trees"""
         pyplot.ioff()  # Turn off interactive display
         photo = Phylo.read(EX_PHOTO, "phyloxml")
         apaf = Phylo.read(EX_APAF, "phyloxml")
         test_list = [photo, apaf]
         
-        try:
-            Phylo.visualize_changes(test_list, "test_gif1")
-            Phylo.visualize_changes(test_list, "test_gif2", optimized=True)
-        finally:
-            os.remove("test_gif1.gif")
-            os.remove("test_gif2.gif")
+        Phylo.visualize_changes(test_list, "test_gif1")
+        Phylo.visualize_changes(test_list, "test_gif2", optimized=True)
+        
+        # Check that gifs save correctly
+        assert os.path.exists("test_gif1.gif")
+        assert os.path.exists("test_gif2.gif")
+        if not os.stat("test_gif1.gif").st_size > 1:
+            raise FileNotFoundError("Size of the saved gif is too small.") from None
+        if not os.stat("test_gif2.gif").st_size > 1:
+            raise FileNotFoundError("Size of the saved optimized gif is too small.") from None
+
+        os.remove("test_gif1.gif")
+        os.remove("test_gif2.gif")
             
 
 
