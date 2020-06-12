@@ -561,7 +561,7 @@ def draw(
                 )
             )
         elif not use_linecollection and orientation == "vertical":
-            axes.vlines(x_here, y_bot, y_top, color=color, lw=lw alpha=lo)
+            axes.vlines(x_here, y_bot, y_top, color=color, lw=lw, alpha=lo)
         elif use_linecollection and orientation == "vertical":
             vertical_linecollections.append(
                 mpcollections.LineCollection(
@@ -754,7 +754,7 @@ def draw(
         plt.show()
     if save_name:
         try:
-            plt.savefig(save_name) + ".png")
+            plt.savefig(save_name + ".png")
         except TypeError:
             print("Provide save_name as a string")
     plt.close()
