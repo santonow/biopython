@@ -6,7 +6,6 @@
 # package.
 
 """Utilities for handling, displaying and exporting Phylo trees.
-
 Third-party libraries are loaded when the corresponding function is called.
 """
 
@@ -18,11 +17,9 @@ from Bio import MissingPythonDependencyError
 
 def to_networkx(tree):
     """Convert a Tree object to a networkx graph.
-
     The result is useful for graph-oriented analysis, and also interactive
     plotting with pylab, matplotlib or pygraphviz, though the resulting diagram
     is usually not ideal for displaying a phylogeny.
-
     Requires NetworkX version 0.99 or later.
     """
     try:
@@ -86,65 +83,55 @@ def draw_graphviz(
     tree, label_func=str, prog="twopi", args="", node_color="#c0deff", **kwargs
 ):
     """Display a tree or clade as a graph, using the graphviz engine.
-
     Requires NetworkX, matplotlib, Graphviz and either PyGraphviz or pydot.
-
     The third and fourth parameters apply to Graphviz, and the remaining
     arbitrary keyword arguments are passed directly to networkx.draw(), which
     in turn mostly wraps matplotlib/pylab.  See the documentation for Graphviz
     and networkx for detailed explanations.
-
     The NetworkX/matplotlib parameters are described in the docstrings for
     networkx.draw() and pylab.scatter(), but the most reasonable options to try
     are: *alpha, node_color, node_size, node_shape, edge_color, style,
     font_size, font_color, font_weight, font_family*
-
     :Parameters:
-
         label_func : callable
-            A function to extract a label from a node. By default this is str(),
-            but you can use a different function to select another string
-            associated with each node. If this function returns None for a node,
-            no label will be shown for that node.
-
+            A function to extract a label from a node. By default this is
+            str(), but you can use a different function to select
+            another string associated with each node. If this function returns
+            None for a node, no label will be shown for that node.
             The label will also be silently skipped if the throws an exception
             related to ordinary attribute access (LookupError, AttributeError,
             ValueError); all other exception types will still be raised. This
             means you can use a lambda expression that simply attempts to look
-            up the desired value without checking if the intermediate attributes
-            are available::
-
+            up the desired value without checking if the intermediate
+            attributes are available::
                 from Bio import Phylo, AlignIO
-                from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
+                from Bio.Phylo.TreeConstruction import DistanceCalculator
+                from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
                 constructor = DistanceTreeConstructor()
                 aln = AlignIO.read(open('TreeConstruction/msa.phy'), 'phylip')
                 calculator = DistanceCalculator('identity')
                 dm = calculator.get_distance(aln)
                 tree = constructor.upgma(dm)
                 Phylo.draw_graphviz(tree, lambda n: n.taxonomies[0].code)
-
         prog : string
             The Graphviz program to use when rendering the graph. 'twopi'
-            behaves the best for large graphs, reliably avoiding crossing edges,
-            but for moderate graphs 'neato' looks a bit nicer.  For small
-            directed graphs, 'dot' may produce a normal-looking cladogram, but
-            will cross and distort edges in larger graphs. (The programs 'circo'
-            and 'fdp' are not recommended.)
+            behaves the best for large graphs, reliably avoiding
+            crossing edges, but for moderate graphs 'neato' looks a bit nicer.
+            For small directed graphs, 'dot' may produce a normal-looking
+            cladogram, but will cross and distort edges in larger graphs.
+            (The programs 'circo' and 'fdp' are not recommended.)
         args : string
             Options passed to the external graphviz program.  Normally not
             needed, but offered here for completeness.
-
     Examples
     --------
     Load a PhyloXML format tree, and draw a PNG using GraphViz::
-
         import pylab
         from Bio import Phylo
         tree = Phylo.read('PhyloXML/apaf.xml', 'phyloxml')
         Phylo.draw_graphviz(tree)
         pylab.show()
         pylab.savefig('apaf.png')
-
     """
     # Deprecated in Biopython 1.70 (#1247)
     import warnings
@@ -165,13 +152,17 @@ def draw_graphviz(
     G = to_networkx(tree)
     try:
         # NetworkX version 1.8 or later (2013-01-20)
-        Gi = networkx.convert_node_labels_to_integers(G, label_attribute="label")
+        Gi = networkx.convert_node_labels_to_integers(
+            G, label_attribute="label"
+        )
         int_labels = {}
         for integer, nodeattrs in Gi.node.items():
             int_labels[nodeattrs["label"]] = integer
     except TypeError:
         # Older NetworkX versions (before 1.8)
-        Gi = networkx.convert_node_labels_to_integers(G, discard_old_labels=False)
+        Gi = networkx.convert_node_labels_to_integers(
+            G, discard_old_labels=False
+        )
         int_labels = Gi.node_labels
 
     try:
@@ -216,15 +207,18 @@ def draw_graphviz(
 
     posn = {n: posi[int_labels[n]] for n in G}
     networkx.draw(
-        G, posn, labels=labels, with_labels=True, node_color=node_color, **kwargs
+        G,
+        posn,
+        labels=labels,
+        with_labels=True,
+        node_color=node_color,
+        **kwargs
     )
 
 
 def draw_ascii(tree, file=None, column_width=80):
     """Draw an ascii-art phylogram of the given tree.
-
     The printed result looks like::
-
                                         _________ Orange
                          ______________|
                         |              |______________ Tangerine
@@ -234,15 +228,12 @@ def draw_ascii(tree, file=None, column_width=80):
          |                        |______________ Pummelo
          |
          |__________________________________ Apple
-
-
     :Parameters:
         file : file-like object
             File handle opened for writing the output drawing. (Default:
             standard output)
         column_width : int
             Total number of text columns used by the drawing.
-
     """
     if file is None:
         file = sys.stdout
@@ -285,7 +276,9 @@ def draw_ascii(tree, file=None, column_width=80):
 
     col_positions = get_col_positions(tree)
     row_positions = get_row_positions(tree)
-    char_matrix = [[" " for x in range(drawing_width)] for y in range(drawing_height)]
+    char_matrix = [
+        [" " for x in range(drawing_width)] for y in range(drawing_height)
+    ]
 
     def draw_clade(clade, startcol):
         thiscol = col_positions[clade]
@@ -333,22 +326,19 @@ def draw(
     **kwargs
 ):
     """Plot the given tree using matplotlib (or pylab).
-
     The graphic is a rooted tree, drawn with roughly the same algorithm as
     draw_ascii.
     Instead of a single tree a list of tuples (tree, probability) can be given.
-    In that case all of the trees will be plotted on a single graph, with transparency
-    of the lines depending on probablity.
-
+    In that case all of the trees will be plotted on a single graph,
+    with transparency of the lines depending on probablity.
     Additional keyword arguments passed into this function are used as pyplot
     options. The input format should be in the form of:
     pyplot_option_name=(tuple), pyplot_option_name=(tuple, dict), or
     pyplot_option_name=(dict).
-
     Example using the pyplot options 'axhspan' and 'axvline'::
-
         from Bio import Phylo, AlignIO
-        from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
+        from Bio.Phylo.TreeConstruction import DistanceCalculator
+        from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
         constructor = DistanceTreeConstructor()
         aln = AlignIO.read(open('TreeConstruction/msa.phy'), 'phylip')
         calculator = DistanceCalculator('identity')
@@ -356,17 +346,16 @@ def draw(
         tree = constructor.upgma(dm)
         Phylo.draw(tree, axhspan=((0.25, 7.75), {'facecolor':'0.5'}),
         ... axvline={'x':0, 'ymin':0, 'ymax':1})
-
-    Visual aspects of the plot can also be modified using pyplot's own functions
-    and objects (via pylab or matplotlib). In particular, the pyplot.rcParams
-    object can be used to scale the font size (rcParams["font.size"]) and line
-    width (rcParams["lines.linewidth"]).
-
+    Visual aspects of the plot can also be modified using pyplot's
+    own functions and objects (via pylab or matplotlib). In particular,
+    the pyplot.rcParams object can be used to scale the font size
+    (rcParams["font.size"]) and line width (rcParams["lines.linewidth"]).
     :Parameters:
         label_func : callable
-            A function to extract a label from a node. By default this is str(),
-            but you can use a different function to select another string
-            associated with each node. If this function returns None for a node,
+            A function to extract a label from a node. By default
+            this is str(), but you can use a different function
+            to select another string associated with each node.
+            If this function returns None for a node,
             no label will be shown for that node.
         do_show : bool
             Whether to show() the plot automatically.
@@ -381,8 +370,8 @@ def draw(
             the clade, taken from the ``confidence`` attribute, and can be
             easily toggled off with this function's ``show_confidence`` option.
             But if you would like to alter the formatting of confidence values,
-            or label the branches with something other than confidence, then use
-            this option.
+            or label the branches with something other than confidence,
+            then use this option.
         label_colors : dict or callable
             A function or a dictionary specifying the color of the tip label.
             If the tip label can't be found in the dict or label_colors is
@@ -398,7 +387,6 @@ def draw(
             Wether or not to scale width of branches depending on confidence.
             If more than one confidence is provided for a branch,
             only the first one will be considered.
-
     """
     try:
         import matplotlib.pyplot as plt
@@ -415,22 +403,23 @@ def draw(
     # Arrays that store lines for the plot of clades
     horizontal_linecollections = []
     vertical_linecollections = []
-    
+
     # Options for adding branch width connected to confidence of the branch
     def calc_width(tree):
-        """Change confidence into width of the branch.""" 
+        """Change confidence into width of the branch."""
+
         def change_width(clade):
             try:
                 clade.width = clade.confidence
             except AttributeError:
                 clade.width = clade.confidences[0]
                 # phyloXML supports multiple confidences
-            if clade.width != None:
-                clade.width = float(clade.width)/40
+            if clade.width is not None:
+                clade.width = float(clade.width) / 40
             if clade.clades:
                 for child in clade:
                     change_width(child)
-                    
+
         change_width(tree.root)
 
     # Options for displaying branch labels / confidence
@@ -493,7 +482,6 @@ def draw(
 
     def get_x_positions(tree):
         """Create a mapping of each clade to its horizontal position.
-
         Dict of {clade: x-coord}
         """
         depths = tree.depths()
@@ -504,14 +492,14 @@ def draw(
 
     def get_y_positions(tree):
         """Create a mapping of each clade to its vertical position.
-
         Dict of {clade: y-coord}.
         Coordinates are negative, and integers for tips.
         """
         maxheight = tree.count_terminals()
         # Rows are defined by the tips
         heights = {
-            tip: maxheight - i for i, tip in enumerate(reversed(tree.get_terminals()))
+            tip: maxheight - i
+            for i, tip in enumerate(reversed(tree.get_terminals()))
         }
 
         # Internal nodes: place at midpoint of children
@@ -545,19 +533,21 @@ def draw(
         y_top=0,
         color="black",
         lw=".1",
-        lo="1.0"
+        lo="1.0",
     ):
         """Create a line with or without a line collection object.
-
-        Graphical formatting of the lines representing clades in the plot can be
-        customized by altering this function.
+        Graphical formatting of the lines representing clades in the plot
+        can be customized by altering this function.
         """
         if not use_linecollection and orientation == "horizontal":
             axes.hlines(y_here, x_start, x_here, color=color, lw=lw, alpha=lo)
         elif use_linecollection and orientation == "horizontal":
             horizontal_linecollections.append(
                 mpcollections.LineCollection(
-                    [[(x_start, y_here), (x_here, y_here)]], color=color, lw=lw, alpha=lo
+                    [[(x_start, y_here), (x_here, y_here)]],
+                    color=color,
+                    lw=lw,
+                    alpha=lo,
                 )
             )
         elif not use_linecollection and orientation == "vertical":
@@ -565,10 +555,13 @@ def draw(
         elif use_linecollection and orientation == "vertical":
             vertical_linecollections.append(
                 mpcollections.LineCollection(
-                    [[(x_here, y_bot), (x_here, y_top)]], color=color, lw=lw, alpha=lo
+                    [[(x_here, y_bot), (x_here, y_top)]],
+                    color=color,
+                    lw=lw,
+                    alpha=lo,
                 )
             )
-            
+
     def add_photo(name):
         """Read and prepare photo for inserting into the graph."""
         try:
@@ -581,13 +574,23 @@ def draw(
             im = PIL.Image.open(name)
         except FileNotFoundError:
             return
-        
+
         x_size, y_size = im.size
-        if x_size!=y_size:
+        if x_size != y_size:
             if x_size < y_size:
-                box = (0, (y_size-x_size)/2, x_size, ((y_size-x_size)/2)+x_size)
+                box = (
+                    0,
+                    (y_size - x_size) / 2,
+                    x_size,
+                    ((y_size - x_size) / 2) + x_size,
+                )
             else:
-                box = ((x_size-y_size)/2, 0, ((x_size-y_size)/2)+y_size, y_size)
+                box = (
+                    (x_size - y_size) / 2,
+                    0,
+                    ((x_size - y_size) / 2) + y_size,
+                    y_size,
+                )
             region = im.crop(box)
         else:
             region = im
@@ -613,7 +616,7 @@ def draw(
             x_here=x_here,
             color=color,
             lw=lw,
-            lo=lo
+            lo=lo,
         )
         # Add node/taxon labels
         label = label_func(clade)
@@ -635,26 +638,27 @@ def draw(
                 fontsize="small",
                 horizontalalignment="center",
             )
-            
-        # Options for adding photos to graph    
+
+        # Options for adding photos to graph
         if photos and not clade.clades:
             from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+
             try:
-                import numpy as np
-            except ImportError:
-                raise MissingPythonDependencyError(
-                    "Install numpy if you want to add photos to graphs."
-                ) from None
-            try:
-                im = add_photo(label+".jpg")
+                im = add_photo(label + ".jpg")
                 imagebox = OffsetImage(im)
-                offset = 50+len(str(label))*13
+                offset = 50 + len(str(label)) * 13
                 imagebox.image.axes = axes
-                ab = AnnotationBbox(imagebox, (x_here, y_here), boxcoords = 'offset pixels', xybox=(offset,0), pad=0.3)
+                ab = AnnotationBbox(
+                    imagebox,
+                    (x_here, y_here),
+                    boxcoords="offset pixels",
+                    xybox=(offset, 0),
+                    pad=0.3,
+                )
                 axes.add_artist(ab)
-            except:
+            except Exception:
                 pass
-        
+
         if clade.clades:
             # Draw a vertical line connecting all children
             y_top = y_posns[clade.clades[0]]
@@ -668,12 +672,12 @@ def draw(
                 y_top=y_top,
                 color=color,
                 lw=lw,
-                lo=lo
+                lo=lo,
             )
             # Draw descendents
             for child in clade:
                 draw_clade(child, x_here, color, lw, lo)
-                
+
     def random_color():
         try:
             import random
@@ -681,7 +685,7 @@ def draw(
             raise MissingPythonDependencyError(
                 "Install random if you want to draw multiple trees."
             ) from None
-        levels = range(32,256,32)
+        levels = range(32, 256, 32)
         return tuple(random.choice(levels) for _ in range(3))
 
     # Options for drawing multiple trees in one graph
@@ -694,10 +698,16 @@ def draw(
                 y_posns = get_y_positions(tree[i][0])
                 tree_color = random_color()
                 tree[i][0].root._set_color(tree_color)
-                draw_clade(tree[i][0].root, 0, "k", plt.rcParams["lines.linewidth"], lo=float(tree[i][1]/100))
+                draw_clade(
+                    tree[i][0].root,
+                    0,
+                    "k",
+                    plt.rcParams["lines.linewidth"],
+                    lo=float(tree[i][1] / 100),
+                )
             except IndexError:
-                print("Provide correctly formated list of trees and probabilities")
-        
+                print("Provide correct list of trees and probabilities")
+
     else:
         if width:
             calc_width(tree)
@@ -723,8 +733,8 @@ def draw(
             axes.set_title(name)
     axes.set_xlabel("branch length")
     axes.set_ylabel("taxa")
-    axes.spines['top'].set_visible(False)
-    axes.spines['right'].set_visible(False) 
+    axes.spines["top"].set_visible(False)
+    axes.spines["right"].set_visible(False)
     # Add margins around the tree to prevent overlapping the axes
     xmax = max(x_posns.values())
     axes.set_xlim(-0.05 * xmax, 1.25 * xmax)
@@ -759,15 +769,14 @@ def draw(
             print("Provide save_name as a string")
     plt.close()
 
-        
+
 def visualize_changes(trees_list, gif_name, optimized=False, s=60):
-    
     """ Visualize multiple trees on one gifs.
     Trees are painted using the standard draw() method.
     Usage requires having shutil and imageio libraries installed.
     Gif will be saved in the current working directory.
     Input must be either a list of trees, or an output of MCMC sampler.
-    
+
     :Parameters:
         gif_name : str
             Name under which the gif will be saved
@@ -778,7 +787,7 @@ def visualize_changes(trees_list, gif_name, optimized=False, s=60):
             How long, in seconds, should a full loop of the gif take.
             Default value is 60 (a full minute).
     """
-    
+
     # Imports
     try:
         import os
@@ -792,7 +801,7 @@ def visualize_changes(trees_list, gif_name, optimized=False, s=60):
         raise MissingPythonDependencyError(
             "Install shutil if you want to visualize changes."
         ) from None
-    
+
     # Options for genetaring gifs
     def generate_gif(frames):
         try:
@@ -801,42 +810,43 @@ def visualize_changes(trees_list, gif_name, optimized=False, s=60):
             raise MissingPythonDependencyError(
                 "Install imageio if you want to visualize changes."
             ) from None
-        fps=frames/s
-        images = []
-        with imageio.get_writer(current+'/'+gif_name+".gif", mode='I', fps=fps) as writer:
+        fps = frames / s
+        with imageio.get_writer(
+            current + "/" + gif_name + ".gif", mode="I", fps=fps
+        ) as writer:
             for filename in os.listdir(os.getcwd()):
                 image = imageio.imread(filename)
                 writer.append_data(image)
 
     current = os.getcwd()
 
-    if not os.path.exists(current+"/plot_temp"):
+    if not os.path.exists(current + "/plot_temp"):
         os.mkdir("plot_temp")
-    os.chdir(current+"/plot_temp")
+    os.chdir(current + "/plot_temp")
 
     # Parsing MCMC sampler output
     if isinstance(trees_list[0], list):
-        counter=0
+        counter = 0
         for i in range(len(trees_list[0])):
             try:
-                changed_clade=trees_list[4][i]
+                changed_clade = trees_list[4][i]
                 changed_clade._set_color("red")
-            except:
+            except Exception:
                 pass
-            e=1
-            while e<=trees_list[1][i]:
+            e = 1
+            while e <= trees_list[1][i]:
                 draw(trees_list[0][i], do_show=False, save_name=str(counter))
-                counter+=1
-                e+=1
-                
+                counter += 1
+                e += 1
+
     else:
         for i in range(len(trees_list)):
             draw(trees_list[i], do_show=False, save_name=str(i))
-    
+
     generate_gif(len(trees_list))
     os.chdir(current)
     # Removing temporary graphs
-    shutil.rmtree(current+"/plot_temp")
+    shutil.rmtree(current + "/plot_temp")
 
     # Options for optimizing
     if optimized:
@@ -846,4 +856,4 @@ def visualize_changes(trees_list, gif_name, optimized=False, s=60):
             raise MissingPythonDependencyError(
                 "Install pygifsicle if you want to optimize your gif."
             ) from None
-        optimize(gif_name+".gif") 
+        optimize(gif_name + ".gif")
