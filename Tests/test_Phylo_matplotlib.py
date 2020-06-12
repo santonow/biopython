@@ -152,10 +152,10 @@ class UtilTests(unittest.TestCase):
         pyplot.ioff()  # Turn off interactive display
         photo = Phylo.read(EX_PHOTO, "phyloxml")
         current = os.getcwd()
-        os.chdir("PhyloXML/photos)
+        os.chdir("PhyloXML/photos")
         
         try:
-            os.chdir("PhyloXML/photos)
+            os.chdir("PhyloXML/photos")
             Phylo.draw(photo, do_show=False, photos=True)
         finally:       
             os.chdir(current)
