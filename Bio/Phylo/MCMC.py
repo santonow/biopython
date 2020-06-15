@@ -347,11 +347,6 @@ class ChangeEvolutionParamStepper(Stepper):
                 pass
             else:
                 return new_stat_params
-        # vals = list(stat_params.values())
-        # vals[random.randint(0, len(vals) - 1)] += abs(random.gauss(0, sd))
-        # denom = sum(vals)
-        # vals = [x / denom for x in vals]
-        # return {symbol: value for symbol, value in zip(stat_params.keys(), vals)}
 
     @staticmethod
     def _change_exch_params(exch_params, alphabet, sd):
