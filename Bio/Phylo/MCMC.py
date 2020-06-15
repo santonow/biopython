@@ -410,7 +410,7 @@ class SamplerMCMC:
         burn_in=0,
         plot=False,
         start_tree=None,
-        start_from_random_tree=False
+        start_from_random_tree=False,
     ):
         """Perform MCMC sampling procedure.
 
@@ -499,15 +499,9 @@ class SamplerMCMC:
                 hastings_ratio, backbone, branching = stepper.perform_step(
                     proposal_tree
                 )
-                # find clade in backbone closest to root
-                top_clade = backbone[0]
-                for clade in backbone[1:]:
-                    clade_children_names = {cld.name for cld in clade.clades}
-                    if top_clade.name in clade_children_names:
-                        top_clade = clade
 
-                proposal_likelihood = scorer.update_likelihood(
-                    tree=proposal_tree, alignment=msa, subtree_root_name=top_clade.name
+                proposal_likelihood = scorer.get_score(
+                    tree=proposal_tree, alignment=msa
                 )
 
                 acceptance_ratio = (
