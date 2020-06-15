@@ -1271,7 +1271,7 @@ class LikelihoodScorer(Scorer):
         return self._evolution_model
 
     @evolution_model.setter
-    def exch_params(self, value):
+    def evolution_model(self, value):
         """Setter method for evolution_model.
 
         Delete previous DP dictionary when evolution_model is changed.
@@ -1400,8 +1400,8 @@ class LikelihoodScorer(Scorer):
 
         Updates the dynamic programming dictionary, first by computing the entry refering to subtree_root_name,
         then computing all entries on a path from subtree_root_name to tree's root.
-        The complexity depends on the subtree root's position, but it's at least twice as fast compared to computing
-        the likelihood of a whole tree. Useful when making a move in MCMC sampling that changes only a part of a tree.
+        The complexity depends on the subtree root's position, but should't be slower than computing for the whole tree.
+        Useful when making a move in MCMC sampling that changes only a part of a tree.
 
         :Parameters:
             tree : Tree

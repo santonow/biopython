@@ -4,7 +4,6 @@
 
 import random
 import math
-import matplotlib.pyplot as plt
 import copy
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceCalculator
@@ -15,6 +14,7 @@ from Bio.Align import MultipleSeqAlignment
 from Bio.Phylo.EvolutionModel import GTRModel
 from Bio.Phylo.EvolutionModel import EvolutionModel
 from Bio.Phylo.EvolutionModel import F81Model
+from Bio import MissingPythonDependencyError
 
 
 class Stepper:
@@ -322,31 +322,35 @@ class ChangeEvolutionParamStepper(Stepper):
         1. Randomly choose one of the parameters and add random.gauss(0, sd).
         2. Change randomly chosen second parameter accordingly to retain distribution properties.
         """
-        new_stat_params = copy.deepcopy(stat_params)
-        symbols = [*new_stat_params.keys()]
-        random.shuffle(symbols)
-        symbol_to_change = symbols.pop()
-        random_update = random.gauss(0, sd)
-        if (
-            new_stat_params[symbol_to_change] + random_update <= 0
-            or new_stat_params[symbol_to_change] + random_update >= 1
-        ):
-            pass
-        else:
-            new_stat_params[symbol_to_change] += random_update
-            sum_helper = new_stat_params[symbol_to_change]
-            # second_symbol = symbols.pop()
-            # print("sec_sym: " + second_symbol)
-            for s in symbols[:-1]:
-                new_stat_params[s] = stat_params[s] / (1 + random_update)
-                sum_helper += new_stat_params[s]
-                # print("sum_helper " + str(sum_helper))
-            # new_stat_params[second_symbol] = 1 - sum_helper
-            new_stat_params[symbols[-1]] = 1 - sum_helper
-            if not math.isclose(1, sum(new_stat_params.values())):
-                pass
-            else:
-                return new_stat_params
+        # symbols = [*new_stat_params.keys()]
+        # random.shuffle(symbols)
+        # symbol_to_change = symbols.pop()
+        # random_update = random.gauss(0, sd)
+        # if (
+        #     new_stat_params[symbol_to_change] + random_update <= 0
+        #     or new_stat_params[symbol_to_change] + random_update >= 1
+        # ):
+        #     pass
+        # else:
+        #     new_stat_params[symbol_to_change] += random_update
+        #     sum_helper = new_stat_params[symbol_to_change]
+        #     # second_symbol = symbols.pop()
+        #     # print("sec_sym: " + second_symbol)
+        #     for s in symbols[:-1]:
+        #         new_stat_params[s] = stat_params[s] / (1 + random_update)
+        #         sum_helper += new_stat_params[s]
+        #         # print("sum_helper " + str(sum_helper))
+        #     # new_stat_params[second_symbol] = 1 - sum_helper
+        #     new_stat_params[symbols[-1]] = 1 - sum_helper
+        #     if not math.isclose(1, sum(new_stat_params.values())):
+        #         pass
+        #     else:
+        #         return new_stat_params
+        vals = list(stat_params.values())
+        vals[random.randint(0, len(vals) - 1)] += abs(random.gauss(0, sd))
+        denom = sum(vals)
+        vals = [x / denom for x in vals]
+        return {symbol: value for symbol, value in zip(stat_params.keys(), vals)}
 
     @staticmethod
     def _change_exch_params(exch_params, alphabet, sd):
@@ -411,26 +415,28 @@ class SamplerMCMC:
         """Perform MCMC sampling procedure.
 
         Arguments:
-        - msa - MulitipleSequenceAlignment object,
-        - no_iterations - number of MCMC sampling steps,
-        - burn_in - all outputs from LocalWithoutClockStepper steps will NOT include first burn_in elements,
-        - plot - if True at the end of the procedure a plot of all likelihoods strating from burn in will be plotted,
-        - start_tree - if valid BaseTree object passed - it is a starting tree for sampling,
-        - start_from_random_tree - if True - the starting tree will be random, if False - constructed using UPGMA.
+            - msa - MulitipleSequenceAlignment object,
+            - no_iterations - number of MCMC sampling steps,
+            - burn_in - all outputs from LocalWithoutClockStepper steps will NOT include first burn_in elements,
+            - plot - if True at the end of the procedure a plot of
+              all likelihoods strating from burn in will be plotted,
+            - start_tree - if valid BaseTree object passed - it is a starting tree for sampling,
+            - start_from_random_tree - if True - the starting tree will be random, if False - constructed using UPGMA.
+
         1. Construct initial tree from MultipleSequenceAlignment.
         2. For no_iterations perform single step randomly chosen according to steps distribution.
         3. Check if the step is accepted.
         4. Return list of lists:
-        4.1 for LocalWithoutClockStepper steps starting from first tree after burn_in:
-        - trees,
-        - no_of_consecutive_tree_appearances,
-        - likelihoods,
-        - changed_backbone_nodes,
-        - changed_branching_node - empty if tree topology not changed,
-        4.2 for ChangeEvolutionParamStepper:
-        - parameters,
-        - no_of_consecutive_parameters_appearances.
-        5. if plot==True: plot likelihoods.
+        5. for LocalWithoutClockStepper steps starting from first tree after burn_in:
+            - trees,
+            - no_of_consecutive_tree_appearances,
+            - likelihoods,
+            - changed_backbone_nodes,
+            - changed_branching_node - empty if tree topology not changed,
+        6. for ChangeEvolutionParamStepper:
+            - parameters,
+            - no_of_consecutive_parameters_appearances.
+        7. if plot==True: plot likelihoods.
         """
         # validate input
         if not isinstance(msa, MultipleSeqAlignment):
@@ -493,9 +499,17 @@ class SamplerMCMC:
                 hastings_ratio, backbone, branching = stepper.perform_step(
                     proposal_tree
                 )
-                proposal_likelihood = scorer.get_score(
-                    tree=proposal_tree, alignment=msa
+                # find clade in backbone closest to root
+                top_clade = backbone[0]
+                for clade in backbone[1:]:
+                    clade_children_names = {cld.name for cld in clade.clades}
+                    if top_clade.name in clade_children_names:
+                        top_clade = clade
+
+                proposal_likelihood = scorer.update_likelihood(
+                    tree=proposal_tree, alignment=msa, subtree_root_name=top_clade.name
                 )
+
                 acceptance_ratio = (
                     proposal_likelihood - likelihood_current + math.log(hastings_ratio)
                 )
@@ -521,12 +535,14 @@ class SamplerMCMC:
                 proposal_evolution_model = stepper.perform_step(
                     evolution_model=evolution_model
                 )
+                old_scorer = copy.deepcopy(scorer)
                 scorer = LikelihoodScorer(evolution_model=proposal_evolution_model)
                 proposal_likelihood = scorer.get_score(current_tree, msa)
                 acceptance_ratio = proposal_likelihood - likelihood_current
                 # the step is NOT accepted
                 if acceptance_ratio < math.log(random.random()):
                     self.no_of_consecutive_parameters_appearances[index_param] += 1
+                    scorer = old_scorer
                 else:
                     index_param += 1
                     current_tree = proposal_tree
@@ -541,14 +557,20 @@ class SamplerMCMC:
                     self.no_of_consecutive_parameters_appearances.append(1)
 
         if plot:
+            try:
+                import matplotlib.pyplot as plt
+            except ImportError:
+                raise MissingPythonDependencyError(
+                    "Install matplotlib if you want to plot likelihood."
+                ) from None
             self._plot_likelihoods(self.all_likelihoods[burn_in:])
             plt.show()
 
         if index_tree > 0:
             results_tree = [
                 self.trees[index_for_burn_in:],
-                self.likelihoods[index_for_burn_in:],
                 self.no_of_consecutive_tree_appearances[index_for_burn_in:],
+                self.likelihoods[index_for_burn_in:],
                 self.changed_backbone_nodes[index_for_burn_in:],
                 self.changed_branching_node[index_for_burn_in:],
             ]
@@ -590,11 +612,19 @@ class SamplerMCMC:
         taxa = []
         for seq in msa:
             taxa.append(seq.name)
-        return Tree().randomized(taxa)
+        tree = Tree().randomized(taxa)
+        tree.root.name = "root"
+        return tree
 
     @staticmethod
     def _plot_likelihoods(likelihoods_list):
         """Create plot for likelihoods (PRIVATE)."""
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise MissingPythonDependencyError(
+                "Install matplotlib if you want to plot likelihood."
+            ) from None
         maximum = max(likelihoods_list)
         figure = plt.plot(
             likelihoods_list,

@@ -120,7 +120,6 @@ class GTRModel(EvolutionModel):
     All common models (JC69, F81, K80) are a specific cases of GTR.
     If no arguments to __init__ are provided, defaults to JC69 model.
     With specialized class (e.g. F81Model), the probability computation should generally be faster.
-    TODO: Check if it works for arbitrary symbol sets (aminoacids, codons).
 
     :Parameters:
         exch_params: Dict[Tuple[str, str], float]
@@ -137,22 +136,34 @@ class GTRModel(EvolutionModel):
 
     Examples
     --------
-    Initialize without any parametes, so it defaults to JC69.
-    >>> from Bio.Phylo.EvolutionModel import GTRModel
-    >>> evo_model = GTRModel()
-    >>> evo_model.get_probability("A", "C", t=1)
-    0.1841007154710684
+    Initialize without any parameters, so it defaults to JC69.
+
+        from Bio.Phylo.EvolutionModel import GTRModel
+        evo_model = GTRModel()
+        evo_model.get_probability("A", "C", t=1)
+
+    Output::
+
+        0.1841007154710684
 
     Change stationary distribution to a non-uniform one - Felsenstein81.
-    >>> evo_model.stat_params = dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2]))
-    >>> evo_model.get_probability("A", "C", t=1)
-    0.22233294822941482
+
+        evo_model.stat_params = dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2]))
+        evo_model.get_probability("A", "C", t=1)
+
+    Output::
+
+        0.22233294822941482
 
     Now let's set exch_params using a list. It will be now a GTR model.
     First entry corresponds to A->C and C->A rates, second to A->G and G->A etc.
-    >>> evo_model.exch_params = [1, 2, 3, 4, 5, 6]
-    >>> evo_model.get_probability("A", "C", t=1)
-    0.11773674440501203
+
+        evo_model.exch_params = [1, 2, 3, 4, 5, 6]
+        evo_model.get_probability("A", "C", t=1)
+
+    Output::
+
+        0.11773674440501203
 
     """
 
