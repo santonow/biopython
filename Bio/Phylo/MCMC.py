@@ -322,35 +322,36 @@ class ChangeEvolutionParamStepper(Stepper):
         1. Randomly choose one of the parameters and add random.gauss(0, sd).
         2. Change randomly chosen second parameter accordingly to retain distribution properties.
         """
-        # symbols = [*new_stat_params.keys()]
-        # random.shuffle(symbols)
-        # symbol_to_change = symbols.pop()
-        # random_update = random.gauss(0, sd)
-        # if (
-        #     new_stat_params[symbol_to_change] + random_update <= 0
-        #     or new_stat_params[symbol_to_change] + random_update >= 1
-        # ):
-        #     pass
-        # else:
-        #     new_stat_params[symbol_to_change] += random_update
-        #     sum_helper = new_stat_params[symbol_to_change]
-        #     # second_symbol = symbols.pop()
-        #     # print("sec_sym: " + second_symbol)
-        #     for s in symbols[:-1]:
-        #         new_stat_params[s] = stat_params[s] / (1 + random_update)
-        #         sum_helper += new_stat_params[s]
-        #         # print("sum_helper " + str(sum_helper))
-        #     # new_stat_params[second_symbol] = 1 - sum_helper
-        #     new_stat_params[symbols[-1]] = 1 - sum_helper
-        #     if not math.isclose(1, sum(new_stat_params.values())):
-        #         pass
-        #     else:
-        #         return new_stat_params
-        vals = list(stat_params.values())
-        vals[random.randint(0, len(vals) - 1)] += abs(random.gauss(0, sd))
-        denom = sum(vals)
-        vals = [x / denom for x in vals]
-        return {symbol: value for symbol, value in zip(stat_params.keys(), vals)}
+        new_stat_params = copy.deepcopy(stat_params)
+        symbols = [*new_stat_params.keys()]
+        random.shuffle(symbols)
+        symbol_to_change = symbols.pop()
+        random_update = random.gauss(0, sd)
+        if (
+            new_stat_params[symbol_to_change] + random_update <= 0
+            or new_stat_params[symbol_to_change] + random_update >= 1
+        ):
+            pass
+        else:
+            new_stat_params[symbol_to_change] += random_update
+            sum_helper = new_stat_params[symbol_to_change]
+            # second_symbol = symbols.pop()
+            # print("sec_sym: " + second_symbol)
+            for s in symbols[:-1]:
+                new_stat_params[s] = stat_params[s] / (1 + random_update)
+                sum_helper += new_stat_params[s]
+                # print("sum_helper " + str(sum_helper))
+            # new_stat_params[second_symbol] = 1 - sum_helper
+            new_stat_params[symbols[-1]] = 1 - sum_helper
+            if not math.isclose(1, sum(new_stat_params.values())):
+                pass
+            else:
+                return new_stat_params
+        # vals = list(stat_params.values())
+        # vals[random.randint(0, len(vals) - 1)] += abs(random.gauss(0, sd))
+        # denom = sum(vals)
+        # vals = [x / denom for x in vals]
+        # return {symbol: value for symbol, value in zip(stat_params.keys(), vals)}
 
     @staticmethod
     def _change_exch_params(exch_params, alphabet, sd):
@@ -529,14 +530,12 @@ class SamplerMCMC:
                 proposal_evolution_model = stepper.perform_step(
                     evolution_model=evolution_model
                 )
-                old_scorer = copy.deepcopy(scorer)
                 scorer = LikelihoodScorer(evolution_model=proposal_evolution_model)
                 proposal_likelihood = scorer.get_score(current_tree, msa)
                 acceptance_ratio = proposal_likelihood - likelihood_current
                 # the step is NOT accepted
                 if acceptance_ratio < math.log(random.random()):
                     self.no_of_consecutive_parameters_appearances[index_param] += 1
-                    scorer = old_scorer
                 else:
                     index_param += 1
                     current_tree = proposal_tree
