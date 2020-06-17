@@ -58,13 +58,9 @@ class EvolutionModel:
                 "stat_params must represent a valid probability distribution!"
             )
         if any(x < 0 for x in stat_params.values()):
-            raise ValueError(
-                "stat_params values have to be grater than zero!"
-            )
+            raise ValueError("stat_params values have to be grater than zero!")
         if any(x > 1 for x in stat_params.values()):
-            raise ValueError(
-                "stat_params values have to be less than one!"
-            )
+            raise ValueError("stat_params values have to be less than one!")
         return stat_params
 
 
@@ -136,7 +132,7 @@ class GTRModel(EvolutionModel):
 
     Examples
     --------
-    Initialize without any parameters, so it defaults to JC69.
+    Initialize without any parameters, so it defaults to JC69::
 
         from Bio.Phylo.EvolutionModel import GTRModel
         evo_model = GTRModel()
@@ -146,7 +142,7 @@ class GTRModel(EvolutionModel):
 
         0.1841007154710684
 
-    Change stationary distribution to a non-uniform one - Felsenstein81.
+    Change stationary distribution to a non-uniform one - Felsenstein81::
 
         evo_model.stat_params = dict(zip("ACGT", [0.2, 0.3, 0.3, 0.2]))
         evo_model.get_probability("A", "C", t=1)
@@ -156,7 +152,7 @@ class GTRModel(EvolutionModel):
         0.22233294822941482
 
     Now let's set exch_params using a list. It will be now a GTR model.
-    First entry corresponds to A->C and C->A rates, second to A->G and G->A etc.
+    First entry corresponds to A->C and C->A rates, second to A->G and G->A etc::
 
         evo_model.exch_params = [1, 2, 3, 4, 5, 6]
         evo_model.get_probability("A", "C", t=1)
@@ -210,8 +206,12 @@ class GTRModel(EvolutionModel):
         The eigenvalues and eigenvectors may be complex, but P(t) will not.
         """
         if t not in self._exp_Q_t_matrices:
-            self._exp_Q_t_matrices[t] = self._evecs @ np.diag(np.exp(self._evals * t)) @ self._evecs_inv
-        return np.abs(self._exp_Q_t_matrices[t][self._sym_to_ind[site1], self._sym_to_ind[site2]])
+            self._exp_Q_t_matrices[t] = (
+                self._evecs @ np.diag(np.exp(self._evals * t)) @ self._evecs_inv
+            )
+        return np.abs(
+            self._exp_Q_t_matrices[t][self._sym_to_ind[site1], self._sym_to_ind[site2]]
+        )
 
     def _compute_spectral(self):
         """Compute and return eigenvalues and eigenvectors of the Q matrix (PRIVATE).
